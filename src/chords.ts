@@ -69,9 +69,20 @@ export type ScaleNote = {
 
 /** A scale in one position: three notes per string except one string with two, low E → high E. */
 export type ScaleStep = {
-  /** Tonic of the key ("C", "F♯"); the scale is major, natural minor or altered (arpeggios: also a diminished triad). */
+  /** Tonic of the key ("C", "F♯"); the scale is major, natural minor or altered, or one of the three minor scales (arpeggios: also a diminished triad). */
   root: string;
-  quality: "major" | "minor" | "dim" | "maj7" | "m7" | "7" | "m7b5" | "altered";
+  quality:
+    | "major"
+    | "minor"
+    | "dim"
+    | "maj7"
+    | "m7"
+    | "7"
+    | "m7b5"
+    | "altered"
+    | "naturalMinor"
+    | "harmonicMinor"
+    | "melodicMinor";
   /** 1–7: the degree of the key (major or minor) the position starts on, on the 6th string. */
   position: number;
   /** Mode whose shape the position has ("Jônio" … "Lócrio"). */
@@ -80,6 +91,10 @@ export type ScaleStep = {
   notes: ScaleNote[];
   /** Exercise that is not a position (preparatory lesson): card title, replacing "Posição n" and the mode. */
   label?: Localized;
+  /** Lowest and highest fret the diagram shows, when wider than the notes (a range shared by similar scales). */
+  frets?: [number, number];
+  /** Degrees drawn with a ring: the notes that tell similar scales apart (the 6th and 7th of the minor scales). */
+  highlight?: string[];
   /** The dots show the left-hand finger (the degree goes above the dot): arpeggio fingerings. */
   showFingers?: boolean;
   /** Notes come in pairs (1st-2nd, 3rd-4th…), drawn joined by an arc: the leaps of the exercise. */

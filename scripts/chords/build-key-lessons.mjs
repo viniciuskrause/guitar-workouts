@@ -657,12 +657,13 @@ const NOTES_PER_STRING = {
 /**
  * Left-hand fingers for the notes of one string, from the gaps between them:
  * whole-whole and half-whole → 1 2 4, whole-half → 1 3 4; two notes a whole
- * step apart → 2 4, a half step → 3 4.
+ * step apart → 2 4, a half step → 3 4. The harmonic minor's augmented second
+ * (three frets): half-augmented → 1 2 4, augmented-half → 1 3 4; two notes → 1 4.
  */
 function stringFingers(frets) {
-  if (frets.length === 2) return frets[1] - frets[0] === 1 ? [3, 4] : [2, 4];
+  if (frets.length === 2) return { 1: [3, 4], 2: [2, 4], 3: [1, 4] }[frets[1] - frets[0]];
   const [a, b, c] = frets;
-  return b - a === 2 && c - b === 1 ? [1, 3, 4] : [1, 2, 4];
+  return (b - a === 2 || b - a === 3) && c - b === 1 ? [1, 3, 4] : [1, 2, 4];
 }
 
 /**
@@ -672,8 +673,8 @@ function stringFingers(frets) {
  * tonic; `degreeOf(i)` labels degree i. Fingers follow `stringFingers`, or one finger
  * per fret when the position fits in four frets.
  */
-function positionNotes({ startPc, intervals, index, perString, degreeOf, name }) {
-  const startFret = ((startPc - 4 + 12) % 12) || 12; // low E is pitch class 4
+function positionNotes({ startPc, startFret: fixedStart, intervals, index, perString, degreeOf, name }) {
+  const startFret = fixedStart ?? (((startPc - 4 + 12) % 12) || 12); // low E is pitch class 4
   let midi = OPEN_STRING_MIDI[0] + startFret;
   const stringOf = perString.flatMap((count, string) => Array(count).fill(string));
   const notes = [];
@@ -812,6 +813,8 @@ const renderScaleTrails = (module) =>
           ...(step.label ? [`            label: ${loc(step.label)},`] : []),
           ...(step.leaps ? ["            leaps: true,"] : []),
           ...(step.showFingers ? ["            showFingers: true,"] : []),
+          ...(step.frets ? [`            frets: [${step.frets.join(", ")}],`] : []),
+          ...(step.highlight ? [`            highlight: [${step.highlight.map((degree) => `"${degree}"`).join(", ")}],`] : []),
           ...(step.instruction
             ? [`            instruction: ${loc(step.instruction)},`]
             : []),
@@ -903,6 +906,93 @@ const ALTERED = {
   trails: [1, 2, 3, 4, 5, 6, 7].map((position) => ({
     title: { pt: `Posição ${position}`, en: `Position ${position}` },
     lessons: CYCLE_OF_FOURTHS.map((root) => alteredLesson(root, position)),
+  })),
+};
+
+// ---------------------------------------------------------------- minor scales
+// Module "Escalas Menores" (user, 2026-11-23): like the Ionian module, seven
+// positions of the minor key, position n starting on its n-th degree on the 6th
+// string (position 1 = Eólio shape). Each key has three exercises on the same box:
+// natural minor (Eólio), harmonic minor (raised 7th) and melodic minor (raised
+// 6th and 7th, the same going up and down, as in jazz). Notes per string come from
+// the matching major-scale position; the harmonic and melodic exercises start on
+// the fret of the natural one (moved one fret up when the starting degree is the
+// 6th or 7th), so the three share the box and only the 6th and 7th move.
+const MINOR_SCALES = [
+  {
+    quality: "naturalMinor",
+    intervals: [0, 2, 3, 5, 7, 8, 10],
+    degrees: ["1", "2", "♭3", "4", "5", "♭6", "♭7"],
+    modes: MODES.map((_, index) => MODES[(index + MINOR_TONIC_DEGREE) % 7]),
+  },
+  {
+    quality: "harmonicMinor",
+    intervals: [0, 2, 3, 5, 7, 8, 11],
+    degrees: ["1", "2", "♭3", "4", "5", "♭6", "7"],
+    modes: [
+      { pt: "Menor harmônica", en: "Harmonic minor" },
+      { pt: "Lócrio ♮6", en: "Locrian ♮6" },
+      { pt: "Jônio ♯5", en: "Ionian ♯5" },
+      { pt: "Dórico ♯4", en: "Dorian ♯4" },
+      { pt: "Frígio dominante", en: "Phrygian dominant" },
+      { pt: "Lídio ♯2", en: "Lydian ♯2" },
+      { pt: "Ultralócrio", en: "Ultralocrian" },
+    ],
+  },
+  {
+    quality: "melodicMinor",
+    intervals: [0, 2, 3, 5, 7, 9, 11],
+    degrees: ["1", "2", "♭3", "4", "5", "6", "7"],
+    // The melodic minor's modes, from its tonic (the altered scale is the 7th).
+    modes: ALTERED_MODES.map((_, index) => ALTERED_MODES[(index + 1) % 7]),
+  },
+];
+/** Degrees drawn with a ring: the 6th and 7th, the notes that tell the three scales apart. */
+const MINOR_HIGHLIGHT = ["♭6", "6", "♭7", "7"];
+
+function minorLesson(root, position) {
+  const index = position - 1;
+  const natural = MINOR_SCALES[0];
+  const naturalStart = ((rootPitchClass(root) + natural.intervals[index] - 4 + 24) % 12) || 12;
+  const scale = MINOR_SCALES.map((item) => ({
+    root,
+    quality: item.quality,
+    position,
+    mode: item.modes[index],
+    highlight: MINOR_HIGHLIGHT,
+    notes: positionNotes({
+      startFret: naturalStart + item.intervals[index] - natural.intervals[index],
+      intervals: item.intervals,
+      index,
+      perString: NOTES_PER_STRING[(index + MINOR_TONIC_DEGREE) % 7],
+      degreeOf: (degree) => item.degrees[degree],
+      name: `${root} ${item.quality} posição ${position}`,
+    }),
+  }));
+  // The three diagrams share their fret range, so the notes that move line up.
+  const frets = scale.flatMap((step) => step.notes.map((note) => note.fret));
+  scale.forEach((step) => (step.frets = [Math.min(...frets), Math.max(...frets)]));
+  const name = { pt: `${root} menor`, en: `${root} minor` };
+  return {
+    key: lessonKey("minor", `p${position}`, ascii(root)),
+    title: { pt: `${name.pt} - posição ${position}`, en: `${name.en} - position ${position}` },
+    subtitle: {
+      pt: `${name.pt} natural, harmônica e melódica na posição ${position}, subindo e descendo`,
+      en: `${root} natural, harmonic and melodic minor in position ${position}, up and down`,
+    },
+    scale,
+  };
+}
+
+const MINORS = {
+  title: { pt: "7 Posições das Escalas Menores", en: "7 Positions of the Minor Scales" },
+  subtitle: {
+    pt: "Toque as escalas menor natural, harmônica e melódica em sete posições e ouça a diferença que a 6ª e a 7ª fazem",
+    en: "Play the natural, harmonic and melodic minor scales in seven positions and hear the difference the 6th and 7th make",
+  },
+  trails: [1, 2, 3, 4, 5, 6, 7].map((position) => ({
+    title: { pt: `Posição ${position}`, en: `Position ${position}` },
+    lessons: MINOR_CYCLE.map((root) => minorLesson(root, position)),
   })),
 };
 
@@ -2152,6 +2242,7 @@ const scaleTrails = renderScaleTrails(SCALES);
 const alteredTrails = renderScaleTrails(ALTERED);
 const arpeggioTrails = renderScaleTrails(ARPEGGIOS);
 const seventhArpeggioTrails = renderScaleTrails(SEVENTHS);
+const minorTrails = renderScaleTrails(MINORS);
 
 const file = `import type { ChordStep, ScaleStep } from "./chords.ts";
 import type { Localized } from "./i18n.tsx";
@@ -2257,6 +2348,14 @@ ${seventhArpeggioTrails.join("\n")}
 ${alteredTrails.join("\n")}
     ],
   },
+  {
+    id: 8,
+    title: ${loc(MINORS.title)},
+    subtitle: ${loc(MINORS.subtitle)},
+    trails: [
+${minorTrails.join("\n")}
+    ],
+  },
 ];
 
 /** Every lesson of every trail, in order. */
@@ -2267,5 +2366,5 @@ fs.writeFileSync(
   file,
 );
 console.log(
-  `src/lessons.ts: 7 seções, ${TRAILS.length + TRIADS.trails.length + INVERSIONS.trails.length + SCALES.trails.length + ARPEGGIOS.trails.length + SEVENTHS.trails.length + ALTERED.trails.length} trilhas, ${nextId - 1} aulas`,
+  `src/lessons.ts: 8 seções, ${TRAILS.length + TRIADS.trails.length + INVERSIONS.trails.length + SCALES.trails.length + ARPEGGIOS.trails.length + SEVENTHS.trails.length + ALTERED.trails.length + MINORS.trails.length} trilhas, ${nextId - 1} aulas`,
 );

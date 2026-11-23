@@ -109,11 +109,25 @@ const scaleSymbol = (step: ScaleStep) =>
     "7": "7",
     m7b5: "m7(♭5)",
     altered: "alt",
+    naturalMinor: "m",
+    harmonicMinor: "m",
+    melodicMinor: "m",
   }[step.quality];
 
-/** Key of a scale in words: "C maior" / "A minor" / "B diminuto" / "C alterada". */
+/** The three minor scales: "menor natural" / "natural minor", "menor harmônica" … */
+const MINOR_SCALE_NAMES: Partial<Record<ScaleStep["quality"], Localized>> = {
+  naturalMinor: { pt: "menor natural", en: "natural minor" },
+  harmonicMinor: { pt: "menor harmônica", en: "harmonic minor" },
+  melodicMinor: { pt: "menor melódica", en: "melodic minor" },
+};
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** Key of a scale in words: "C maior" / "A minor" / "B diminuto" / "C alterada" / "A harmonic minor". */
 const scaleName = (step: ScaleStep, lang: Lang) =>
-  step.quality === "altered"
+  MINOR_SCALE_NAMES[step.quality]
+    ? `${step.root} ${MINOR_SCALE_NAMES[step.quality]![lang]}`
+    : step.quality === "altered"
     ? `${step.root} ${lang === "en" ? "altered" : "alterada"}`
     : ["major", "minor", "dim"].includes(step.quality)
     ? `${step.root} ${(lang === "en" ? { major: "major", minor: "minor", dim: "diminished" } : { major: "maior", minor: "menor", dim: "diminuto" })[step.quality as "major" | "minor" | "dim"]}`
@@ -627,8 +641,8 @@ function NextLesson({ sections: all, onSelect }: { sections: Section[]; onSelect
 }
 
 /** The dashboard: home of the app, with the overall progress and the modules. */
-/** Module groups on the dashboard: chord modules, then scales and arpeggios (modules 4–7). */
-const SCALE_MODULES = new Set([4, 5, 6, 7]);
+/** Module groups on the dashboard: chord modules, then scales and arpeggios (modules 4–8). */
+const SCALE_MODULES = new Set([4, 5, 6, 7, 8]);
 const DASHBOARD_GROUPS: Array<{
   title: Localized;
   sections: (id: number) => boolean;
@@ -775,7 +789,8 @@ const LEAP_ROOM = 34;
 /** A scale position on the neck: one dot per note with its degree; the tonic in blue. */
 function ScaleDiagram({ step, activeNote = null }: { step: ScaleStep; /** Index of the note sounding. */ activeNote?: number | null }) {
   const { t, l, lang } = useI18n();
-  const frets = step.notes.map((note) => note.fret);
+  // `frets` widens the diagram to a shared range (the three minor scales are drawn on the same frets).
+  const frets = [...step.notes.map((note) => note.fret), ...(step.frets ?? [])];
   const low = Math.min(...frets);
   // Arpeggio diagrams show at least four frets, so a two-fret fingering isn't drawn huge.
   const high = Math.max(...frets, step.showFingers ? low + 3 : 0);
@@ -870,11 +885,23 @@ function ScaleDiagram({ step, activeNote = null }: { step: ScaleStep; /** Index 
         .map(({ note, index }) => {
           const isActive = index === activeNote;
           const isTonic = note.degree === "1";
+          const isHighlighted = !!step.highlight?.includes(note.degree);
           return (
             <g
               key={`note-${index}`}
               className="transition-transform duration-150"
             >
+              {/* A ring marks the notes that change between similar scales (the minor 6th and 7th). */}
+              {isHighlighted && (
+                <circle
+                  cx={columnX(note.fret)}
+                  cy={rowY(note.string)}
+                  r={12.5}
+                  fill="none"
+                  strokeWidth={2}
+                  className="stroke-accent"
+                />
+              )}
               <circle
                 cx={columnX(note.fret)}
                 cy={rowY(note.string)}
@@ -941,9 +968,18 @@ function ScaleCard({
       {!step.leaps && (
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <p className="font-display text-[18px] font-bold tracking-[-0.02em] text-ink">
-            {step.label ? l(step.label) : t(`Posição ${step.position}`, `Position ${step.position}`)}
+            {step.label
+              ? l(step.label)
+              : MINOR_SCALE_NAMES[step.quality]
+                ? // The three minor scales share the position: the card is named by its scale.
+                  capitalize(l(MINOR_SCALE_NAMES[step.quality]!))
+                : t(`Posição ${step.position}`, `Position ${step.position}`)}
           </p>
-          {!step.label && <p className="text-sm font-medium text-muted">{l(step.mode)}</p>}
+          {!step.label && (
+            <p className="text-sm font-medium text-muted">
+              {MINOR_SCALE_NAMES[step.quality] ? t(`Posição ${step.position}`, `Position ${step.position}`) : l(step.mode)}
+            </p>
+          )}
           {step.showFingers && fingerHint && (
             <p className="text-sm font-medium text-muted">{t("Números: dedos", "Numbers: fingers")}</p>
           )}
@@ -1755,7 +1791,7 @@ function ExercisePage({
                 const isDimmed = isPlaying && !isSounding;
                 return (
                   <NotationCard
-                    key={scaleItem.position}
+                    key={index}
                     step={scaleItem}
                     activeOrder={isSounding ? activeOrder : null}
                     current={isSounding}
@@ -1778,7 +1814,7 @@ function ExercisePage({
                 const isDimmed = isPlaying && !isSounding;
                 return (
                   <ScaleCard
-                    key={scaleItem.position}
+                    key={index}
                     step={scaleItem}
                     activeNote={isSounding ? activeNote : null}
                     current={isSounding}
@@ -2964,6 +3000,171 @@ function AlteredGuide({ onBack }: { onBack: () => void }) {
   );
 }
 
+const MINOR_SOURCES: GuideSource[] = [
+  { label: "Wikipedia — Minor scale", url: "https://en.wikipedia.org/wiki/Minor_scale" },
+  { label: "Wikipedia — Harmonic minor scale", url: "https://en.wikipedia.org/wiki/Harmonic_minor_scale" },
+  { label: "Wikipedia — Melodic minor scale", url: "https://en.wikipedia.org/wiki/Minor_scale#Melodic_minor_scale" },
+];
+
+/** The three minor scales in A: name, notes and degrees. */
+const MINOR_SCALES_IN_A: Array<{ name: Localized; notes: string; degrees: string }> = [
+  { name: { pt: "Menor natural", en: "Natural minor" }, notes: "A B C D E F G", degrees: "1 2 ♭3 4 5 ♭6 ♭7" },
+  { name: { pt: "Menor harmônica", en: "Harmonic minor" }, notes: "A B C D E F G♯", degrees: "1 2 ♭3 4 5 ♭6 7" },
+  { name: { pt: "Menor melódica", en: "Melodic minor" }, notes: "A B C D E F♯ G♯", degrees: "1 2 ♭3 4 5 6 7" },
+];
+
+function MinorScalesGuide({ onBack }: { onBack: () => void }) {
+  const { t, l } = useI18n();
+  // The positions of A minor, from the lessons ("minor/p1/A" … "p7/A"): three scales each.
+  const byPosition = [1, 2, 3, 4, 5, 6, 7].map(
+    (position) => lessons.find((lesson) => lesson.key === `minor/p${position}/A`)?.scale ?? [],
+  );
+  return (
+    <GuideLayout
+      title={t("7 posições das escalas menores", "7 positions of the minor scales")}
+      sources={MINOR_SOURCES}
+      onBack={onBack}
+      intro={t(
+        <>
+          Existem três escalas menores, e elas só diferem na 6ª e na 7ª notas. Neste módulo você toca as três
+          na mesma posição, uma depois da outra, para sentir nos dedos e ouvir essa diferença sutil.
+        </>,
+        <>
+          There are three minor scales, and they differ only in their 6th and 7th notes. In this module you play
+          all three in the same position, one after the other, to feel and hear that subtle difference.
+        </>,
+      )}
+    >
+      <GuideSection title={t("As três escalas menores", "The three minor scales")}>
+        {t(
+          <p>
+            A <strong>menor natural</strong> (o modo eólio) é a escala relativa da maior: A menor tem as notas de
+            C maior. A <strong>menor harmônica</strong> sobe a 7ª um semitom (G → G♯): essa sensível puxa para a
+            tônica e forma o acorde dominante E7, que resolve em Am; entre a ♭6 e a 7 fica um intervalo de um tom
+            e meio, o som “oriental” da escala. A <strong>menor melódica</strong> sobe também a 6ª (F → F♯) e
+            suaviza esse salto. Na música clássica ela desce como a natural; no jazz, e aqui, ela é igual subindo
+            e descendo.
+          </p>,
+          <p>
+            The <strong>natural minor</strong> (the Aeolian mode) is the relative of the major scale: A minor has
+            the notes of C major. The <strong>harmonic minor</strong> raises the 7th a half step (G → G♯): that
+            leading tone pulls to the tonic and builds the dominant chord E7, which resolves to Am; between the ♭6
+            and the 7 there is a step and a half, the scale's “exotic” sound. The <strong>melodic minor</strong>{" "}
+            also raises the 6th (F → F♯) and smooths that leap. In classical music it comes down as the natural
+            minor; in jazz, and here, it is the same up and down.
+          </p>,
+        )}
+        <div className="!mt-6 overflow-x-auto rounded-card border border-line bg-surface">
+          <table className="w-full min-w-[420px] text-left text-sm">
+            <thead className="border-b border-line text-muted">
+              <tr>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Escala", "Scale")}</th>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Notas em A", "Notes in A")}</th>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Graus", "Degrees")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MINOR_SCALES_IN_A.map((item) => (
+                <tr key={item.notes} className="border-b border-line last:border-b-0">
+                  <td className="px-4 py-3 font-semibold text-ink">{l(item.name)}</td>
+                  <td className="px-4 py-3 text-ink-2">{item.notes}</td>
+                  <td className="px-4 py-3 font-mono text-ink">{item.degrees}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </GuideSection>
+
+      <GuideSection title={t("As sete posições", "The seven positions")}>
+        {t(
+          <p>
+            Como no módulo do modo jônio, cada posição começa num grau diferente da escala na 6ª corda, com{" "}
+            <strong>três notas por corda, menos uma corda com duas</strong>. A posição 1 começa na tônica, a 2 no
+            2º grau, e assim por diante. Cada aula é uma posição, e cada tonalidade tem três exercícios na mesma
+            região do braço: menor natural, menor harmônica e menor melódica. Só a 6ª e a 7ª mudam de casa, e
+            elas aparecem marcadas com um anel nos diagramas.
+          </p>,
+          <p>
+            As in the Ionian module, each position starts on a different degree of the scale on the 6th string,
+            with <strong>three notes per string, except one string with two</strong>. Position 1 starts on the
+            tonic, position 2 on the 2nd degree, and so on. Each lesson is one position, and each key has three
+            exercises in the same area of the neck: natural minor, harmonic minor and melodic minor. Only the 6th
+            and the 7th move, and they are marked with a ring on the diagrams.
+          </p>,
+        )}
+      </GuideSection>
+
+      <GuideSection title={t("As três escalas na posição 1", "The three scales in position 1")}>
+        {t(
+          <p>
+            A menor na posição 1. Cada ponto mostra o grau da nota; os pontos azuis são a tônica (A) e os anéis
+            marcam a 6ª e a 7ª, as únicas notas que mudam de uma escala para a outra. Os números abaixo do
+            diagrama são as casas.
+          </p>,
+          <p>
+            A minor in position 1. Each dot shows the degree of its note; the blue dots are the tonic (A) and the
+            rings mark the 6th and the 7th, the only notes that change from one scale to the next. The numbers
+            under the diagram are the frets.
+          </p>,
+        )}
+        <div className="!mt-6 grid gap-4">
+          {byPosition[0].map((step) => (
+            <ScaleCard key={step.quality} step={step} />
+          ))}
+        </div>
+      </GuideSection>
+
+      <GuideSection title={t("As posições em A menor natural", "The positions in A natural minor")}>
+        {t(
+          <p>
+            As sete posições da menor natural. Nas aulas, cada posição traz também a harmônica e a melódica, na
+            mesma região do braço.
+          </p>,
+          <p>
+            The seven positions of the natural minor. In the lessons, each position also has the harmonic and the
+            melodic minor, in the same area of the neck.
+          </p>,
+        )}
+        <div className="!mt-6 grid gap-4 sm:grid-cols-2">
+          {byPosition.map((steps) => steps[0]).filter(Boolean).map((step) => (
+            <ScaleCard
+              key={step.position}
+              // Named by its position here (the scale is the same in every card).
+              step={{ ...step, quality: "minor" }}
+            />
+          ))}
+        </div>
+      </GuideSection>
+
+      <GuideSection title={t("Como estudar", "How to practise")}>
+        {t(
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>Cada aula é uma posição: a posição 1, a posição 2 e assim por diante, até a 7.</li>
+            <li>Cada aula tem uma variação para cada tonalidade, no ciclo de quartas.</li>
+            <li>
+              Toque as três escalas subindo e descendo, com o metrônomo, e repare nas notas marcadas: na natural,
+              ♭6 e ♭7; na harmônica, só a 7 sobe; na melódica, sobem as duas.
+            </li>
+            <li>
+              Na sequência completa, toque as três seguidas e ouça como uma única nota muda o caráter da escala.
+            </li>
+          </ol>,
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>Each lesson is one position: position 1, position 2 and so on, up to 7.</li>
+            <li>Each lesson has a variation for every key, in the cycle of fourths.</li>
+            <li>
+              Play the three scales up and down with the metronome and watch the marked notes: ♭6 and ♭7 in the
+              natural minor; in the harmonic minor only the 7th goes up; in the melodic minor both do.
+            </li>
+            <li>In the full sequence, play all three in a row and hear how a single note changes the scale.</li>
+          </ol>,
+        )}
+      </GuideSection>
+    </GuideLayout>
+  );
+}
+
 const ARPEGGIO_SOURCES: GuideSource[] = [
   { label: "Wikipedia — Arpeggio", url: "https://en.wikipedia.org/wiki/Arpeggio" },
   { label: "Wikipedia — Triad (music)", url: "https://en.wikipedia.org/wiki/Triad_(music)" },
@@ -3730,7 +3931,9 @@ export default function App() {
                 ? SeventhArpeggiosGuide
                 : guideSection === 7
                   ? AlteredGuide
-                  : CagedGuide;
+                  : guideSection === 8
+                    ? MinorScalesGuide
+                    : CagedGuide;
     return <Guide onBack={() => setGuideSection(null)} />;
   }
 
