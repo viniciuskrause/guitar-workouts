@@ -657,7 +657,7 @@ function NextLesson({ sections: all, onSelect }: { sections: Section[]; onSelect
 }
 
 /** The dashboard: home of the app, with the overall progress and the modules. */
-/** Module groups on the dashboard: chord modules, then the scales (4, 8, 7, 9), then arpeggios (5, 6). */
+/** Module groups on the dashboard: chord modules, then arpeggios (5, 6), then the scales (9, 4, 8, 7). */
 const SCALE_MODULES = new Set([4, 7, 8, 9]);
 const ARPEGGIO_MODULES = new Set([5, 6]);
 const DASHBOARD_GROUPS: Array<{
@@ -669,12 +669,12 @@ const DASHBOARD_GROUPS: Array<{
     sections: (id) => !SCALE_MODULES.has(id) && !ARPEGGIO_MODULES.has(id),
   },
   {
-    title: { pt: "Escalas", en: "Scales" },
-    sections: (id) => SCALE_MODULES.has(id),
-  },
-  {
     title: { pt: "Arpejos", en: "Arpeggios" },
     sections: (id) => ARPEGGIO_MODULES.has(id),
+  },
+  {
+    title: { pt: "Escalas", en: "Scales" },
+    sections: (id) => SCALE_MODULES.has(id),
   },
 ];
 
