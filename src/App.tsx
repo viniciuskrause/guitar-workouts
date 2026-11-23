@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { NotationCard, playingOrder } from "./Notation.tsx";
 import {
@@ -150,14 +150,6 @@ const scaleName = (step: ScaleStep, lang: Lang) =>
 /** Key of a variation: the root of its chord ("B♭m7" → "B♭"). */
 const variationKey = (lesson: Lesson) => variationChord(lesson).match(/^[A-G][♯♭]?/)?.[0] ?? lesson.title.pt;
 
-/** Chord quality shown on the lesson icon ("7+", "m7", "ø"; a plain major triad is "M"). */
-function lessonSymbol(trail: TrailData) {
-  const first = trail.lessons[0];
-  if (!first) return "";
-  const suffix = variationChord(first).slice(variationKey(first).length);
-  return suffix === "" ? "M" : suffix.replace("m7(♭5)", "ø");
-}
-
 /** A lesson is done once every key is done; it is current while it holds the current variation. */
 function lessonStatus(trail: TrailData): TrailStatus {
   if (trail.lessons.every((lesson) => lesson.status === "done")) return "done";
@@ -165,126 +157,146 @@ function lessonStatus(trail: TrailData): TrailStatus {
   return "locked";
 }
 
-/** The variation the big icon opens: the first key not done yet (the first key once all are done). */
+/** The variation a lesson opens: the first key not done yet (the first key once all are done). */
 const nextVariation = (trail: TrailData) =>
   trail.lessons.find((lesson) => lesson.status !== "done") ?? trail.lessons[0];
 
-const HUB_SIZE = 148;
-const RING_RADIUS = 64;
-/** Gap between two key segments of the ring, in degrees. */
-const SEGMENT_GAP = 5;
-
-/** Arc of the ring for key `index` of `count`, clockwise from the top. */
-function segmentPath(index: number, count: number) {
-  const center = HUB_SIZE / 2;
-  // A lesson with a single variation (the preparatory lesson) gets the whole ring.
-  if (count === 1) {
-    const r = RING_RADIUS;
-    return `M${center} ${center - r} A${r} ${r} 0 1 1 ${center} ${center + r} A${r} ${r} 0 1 1 ${center} ${center - r}`;
-  }
-  const span = 360 / count;
-  const start = -90 + index * span + SEGMENT_GAP / 2;
-  const end = start + span - SEGMENT_GAP;
-  const point = (degrees: number) => {
-    const radians = (degrees * Math.PI) / 180;
-    return `${center + RING_RADIUS * Math.cos(radians)} ${center + RING_RADIUS * Math.sin(radians)}`;
-  };
-  return `M${point(start)} A${RING_RADIUS} ${RING_RADIUS} 0 0 1 ${point(end)}`;
+/**
+ * A module as a list. Sections are collapsible
+ * cards, groups are subheadings, and each lesson is a row with its title and its keys in
+ * line — a progress bar split in one segment per key (cycle of fourths), blue when done,
+ * orange for the key to practise next. A segment opens its key; the row's play button
+ * opens the next one.
+ */
+function LessonList({ section, onSelect }: { section: Section; onSelect: (lesson: Lesson) => void }) {
+  const { t, l } = useI18n();
+  const blocks = trailBlocks(section);
+  const parts = [...new Set(blocks.map((block) => (block.section ?? block.group)?.pt ?? ""))];
+  // The part with the current lesson starts open (the first part when none is current here).
+  const [open, setOpen] = useState<Set<string>>(() => {
+    const active = section.trails.find((trail) => lessonStatus(trail) === "current") ?? section.trails[0];
+    return new Set([(active?.section ?? active?.group)?.pt ?? ""]);
+  });
+  const toggle = (part: string) =>
+    setOpen((current) => {
+      const next = new Set(current);
+      if (next.has(part)) next.delete(part);
+      else next.add(part);
+      return next;
+    });
+  return (
+    <div className="space-y-3">
+      {parts.map((part) => {
+        const partBlocks = blocks.filter((block) => ((block.section ?? block.group)?.pt ?? "") === part);
+        const title = partBlocks[0].section ?? partBlocks[0].group;
+        const expanded = !title || open.has(part);
+        return (
+          <section key={part} className="overflow-hidden rounded-card border border-line bg-surface">
+            {title && (
+              <button
+                type="button"
+                onClick={() => toggle(part)}
+                aria-expanded={expanded}
+                className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left sm:px-7"
+              >
+                <span className="font-display text-[22px] font-bold tracking-[-0.02em] text-ink sm:text-[26px]">{l(title)}</span>
+                <Icon name="chevron" className={`size-5 shrink-0 text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
+              </button>
+            )}
+            {expanded && (
+              // A tree under the section title: a line runs down from the section to each group
+              // heading, and from each group heading to its lessons.
+              <div className={`px-5 pb-5 sm:px-7 ${title ? "pt-1" : "pt-6"}`}>
+                <ul className="lesson-tree lesson-tree--groups">
+                  {partBlocks.map((block, blockIndex) =>
+                    block.section && block.group ? (
+                      <li key={blockIndex} className="lesson-tree__item lesson-tree__group">
+                        <h3 className="lesson-tree__heading border-l-4 border-brand pl-3 text-[16px] font-bold text-ink sm:text-[17px]">
+                          {l(block.group)}
+                        </h3>
+                        <ul className="lesson-tree lesson-tree--rows mt-1">
+                          {block.items.map(({ trail }) => (
+                            <LessonRow key={trail.lessons[0].id} trail={trail} onSelect={onSelect} />
+                          ))}
+                        </ul>
+                      </li>
+                    ) : (
+                      block.items.map(({ trail }) => <LessonRow key={trail.lessons[0].id} trail={trail} onSelect={onSelect} />)
+                    ),
+                  )}
+                </ul>
+              </div>
+            )}
+          </section>
+        );
+      })}
+      {parts.length === 0 && <p className="text-muted">{t("Nenhuma aula.", "No lessons.")}</p>}
+    </div>
+  );
 }
 
 /**
- * One lesson (a trail): a big icon with the chord quality inside a ring split
- * into 12 segments, one per key in cycle-of-fourths order (C at the top, then
- * clockwise). A segment is blue once its key is done, orange for the key to
- * practise next; clicking it opens that key.
+ * One lesson of the list, drawn as a single clickable card: the title and the keys bar sit
+ * inside one bordered box that highlights as a whole. Clicking anywhere on it opens the
+ * next key (the title button is stretched over the card); the bar's segments sit on top
+ * and each opens its own key.
  */
-function LessonHub({ trail, onSelect }: { trail: TrailData; onSelect: (lesson: Lesson) => void }) {
+function LessonRow({ trail, onSelect }: { trail: TrailData; onSelect: (lesson: Lesson) => void }) {
   const { t, l, lang } = useI18n();
   const status = lessonStatus(trail);
   const next = nextVariation(trail);
-  const center = HUB_SIZE / 2;
-  // The active lesson shows the chord of the key being studied ("C7+", "B♭m"); the others the quality ("7+").
-  const quality = lessonSymbol(trail);
-  // Scale lessons are told apart by their shape, so an idle scale hub shows its position number;
-  // the preparatory exercise (a single key) shows its key, arpeggios the string of their root.
-  const scaleStep = trail.lessons[0].scale?.[0];
-  const centerSymbol = chordName(
-    status === "current"
-      ? variationKey(next) + (quality === "M" ? "" : quality)
-      : scaleStep?.shape
-        ? scaleStep.shape
-      : scaleStep?.showFingers
-        ? t(`${6 - scaleStep.notes[0].string}ª`, ORDINAL_EN[6 - scaleStep.notes[0].string])
-        : scaleStep && !scaleStep.label
-          ? String(scaleStep.position)
-        : scaleStep && trail.lessons.length === 1
-          ? scaleSymbol(scaleStep)
-          : quality,
-    lang,
-  );
-  // Segment under the pointer (or focused): its key shows in a tooltip outside the ring.
-  const [hovered, setHovered] = useState<number | null>(null);
-  const tooltip = hovered === null ? null : (() => {
-    const degrees = -90 + (hovered + 0.5) * (360 / trail.lessons.length);
-    const radians = (degrees * Math.PI) / 180;
-    const radius = RING_RADIUS + 28;
-    return { left: center + radius * Math.cos(radians), top: center + radius * Math.sin(radians) };
-  })();
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: HUB_SIZE, height: HUB_SIZE }}>
-        <svg className="lesson-hub__ring" viewBox={`0 0 ${HUB_SIZE} ${HUB_SIZE}`}>
-          {trail.lessons.map((lesson, index) => {
+    <li className="lesson-tree__item lesson-tree__item--row">
+      <div className="lesson-card group/card relative flex flex-col pb-1 sm:flex-row sm:items-center sm:gap-4 sm:pb-0">
+        <button
+          type="button"
+          onClick={() => onSelect(next)}
+          aria-label={t(`${l(trail.title)}: praticar ${variationKey(next)}`, `${l(trail.title)}: practise ${variationKey(next)}`)}
+          className="lesson-card__main flex min-h-11 min-w-0 items-center pt-3 text-left sm:flex-1 sm:py-3"
+        >
+          {/* The nudge moves this inner span: a transform on the button would shrink its stretched click area. */}
+          <span className="flex items-center gap-2 transition-transform duration-200 ease-out motion-safe:group-hover/card:translate-x-1">
+            <span className={`text-[16px] font-semibold leading-snug sm:text-[17px] ${status === "locked" ? "text-ink-2" : "text-ink"}`}>
+              {l(trail.title)}
+            </span>
+            {status === "done" && <Icon name="check" className="size-5 shrink-0 text-brand [stroke-width:3]" />}
+          </span>
+        </button>
+        <div className="flex min-w-0 items-center gap-5 transition-transform duration-200 ease-out motion-safe:group-hover/card:translate-x-1 sm:flex-none sm:gap-6">
+        <div
+          className="relative z-10 flex min-w-0 flex-1 sm:w-[200px] sm:flex-none"
+          role="group"
+          aria-label={t(`Tonalidades de ${l(trail.title)}`, `Keys of ${l(trail.title)}`)}
+        >
+          {trail.lessons.map((lesson) => {
+            const segment = lesson.status === "done" ? "done" : status === "current" && lesson.id === next.id ? "next" : "todo";
+            const key = chordName(variationKey(lesson), lang);
             const bpm = lesson.status === "done" && lesson.lastBpm !== undefined ? ` · ${lesson.lastBpm} BPM` : "";
-            const segmentStatus = lesson.status === "done" ? "done" : status === "current" && lesson.id === next.id ? "next" : "todo";
-            const label = `${l(lesson.title)}${lesson.status === "done" ? t(" (feita)", " (done)") : ""}${bpm}`;
             return (
-              <path
+              <button
                 key={lesson.id}
-                d={segmentPath(index, trail.lessons.length)}
-                className={`lesson-hub__segment lesson-hub__segment--${segmentStatus}`}
-                role="button"
-                tabIndex={0}
-                aria-label={label}
+                type="button"
                 onClick={() => onSelect(lesson)}
-                onMouseEnter={() => setHovered(index)}
-                onMouseLeave={() => setHovered((current) => (current === index ? null : current))}
-                onFocus={() => setHovered(index)}
-                onBlur={() => setHovered((current) => (current === index ? null : current))}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelect(lesson);
-                  }
-                }}
-              />
+                aria-label={`${l(lesson.title)}${lesson.status === "done" ? t(" (feita)", " (done)") : ""}${bpm}`}
+                className="lesson-row__key relative flex h-11 min-w-0 items-center"
+              >
+                <span className={`lesson-row__bar lesson-row__bar--${segment}`} />
+                <span className="lesson-row__label" aria-hidden="true">
+                  {key}
+                </span>
+              </button>
             );
           })}
-        </svg>
-        {tooltip && hovered !== null && (
-          <span className="lesson-hub__tooltip" style={tooltip} aria-hidden="true">
-            {variationKey(trail.lessons[hovered])}
-          </span>
-        )}
-        <button
-          className={`lesson-hub lesson-hub--${status}`}
-          style={{ left: center, top: center }}
-          onClick={() => onSelect(next)}
-          aria-label={t(
-            `${l(trail.title)}: praticar ${variationKey(next)} (${doneCount(trail.lessons)} tonalidades feitas)`,
-            `${l(trail.title)}: practise ${variationKey(next)} (${doneCount(trail.lessons)} keys done)`,
-          )}
-        >
-          <span className={`lesson-hub__symbol${centerSymbol.length > 4 ? " lesson-hub__symbol--long" : ""}`}>{centerSymbol}</span>
-          {status === "done" && (
-            <span className="trail-node__badge">
-              <Icon name="check" className="size-4 [stroke-width:3.5]" />
-            </span>
-          )}
-        </button>
+        </div>
+        {/* Play: a hint that the row opens the next key (the click lands on the stretched title button). */}
+        <Icon
+          name="play"
+          aria-hidden="true"
+          className="size-6 shrink-0 text-line transition-colors group-hover/card:text-muted group-focus-within/card:text-muted"
+        />
+        </div>
       </div>
-      <p className={`trail-label trail-label--${status} mt-2 max-w-none`}>{l(trail.title)}</p>
-    </div>
+    </li>
   );
 }
 
@@ -311,202 +323,6 @@ function trailBlocks(section: Section) {
       });
   });
   return blocks;
-}
-
-type TrailSegment = { d: string; status: TrailStatus };
-
-/**
- * Every lesson of a module ("módulo") in one container, on a serpentine trail: two lessons
- * per row on wide screens (left → right, then right → left), one per row on
- * phones. Group headings ("1ª inversão: baixo na terça") sit on the trail
- * between their lessons. The trail is drawn from the measured hub positions.
- */
-function UnitTrail({ section, onSelect }: { section: Section; onSelect: (lesson: Lesson) => void }) {
-  const { l } = useI18n();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const hubRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [segments, setSegments] = useState<TrailSegment[]>([]);
-  const trails = section.trails;
-
-  // Collapsible parts of the trail: the top heading level (the section when the module has
-  // two levels, else the group). The part holding the current lesson starts open — or the
-  // first part, when no lesson is current here; the learner opens and closes the others.
-  const partOf = (trail: TrailData) => (trail.section ?? trail.group)?.pt;
-  const [open, setOpen] = useState<Set<string>>(() => {
-    const active =
-      trails.find((trail) => lessonStatus(trail) === "current") ??
-      trails.find((trail) => partOf(trail));
-    const part = active && partOf(active);
-    return new Set(part ? [part] : []);
-  });
-  const toggle = (part: string) =>
-    setOpen((current) => {
-      const next = new Set(current);
-      if (next.has(part)) next.delete(part);
-      else next.add(part);
-      return next;
-    });
-  const isOpen = (trail: TrailData) => {
-    const part = partOf(trail);
-    return !part || open.has(part);
-  };
-
-  // Grid placement on wide screens: headings take a full row, lessons fill rows of two, alternating direction.
-  let row = 0;
-  let hubRow = 0;
-  const placed: Array<
-    | {
-        kind: "heading";
-        title: string;
-        row: number;
-        sub?: boolean;
-        part?: string;
-        expanded?: boolean;
-      }
-    | {
-        kind: "hub";
-        trail: TrailData;
-        index: number;
-        row: number;
-        column: number;
-      }
-  > = [];
-  let currentSection: string | undefined;
-  trailBlocks(section).forEach((block) => {
-    const first = block.items[0].trail;
-    const expanded = isOpen(first);
-    // Two levels: a section heading ("Começando na tônica") over subsection headings ("Tríade maior").
-    if (block.section && block.section.pt !== currentSection) {
-      currentSection = block.section.pt;
-      placed.push({
-        kind: "heading",
-        title: l(block.section),
-        row: ++row,
-        part: block.section.pt,
-        expanded,
-      });
-    }
-    if (block.group && !block.section)
-      placed.push({
-        kind: "heading",
-        title: l(block.group),
-        row: ++row,
-        part: block.group.pt,
-        expanded,
-      });
-    if (!expanded) return;
-    if (block.group && block.section)
-      placed.push({
-        kind: "heading",
-        title: l(block.group),
-        row: ++row,
-        sub: true,
-      });
-    block.items.forEach(({ trail, index }, position) => {
-      if (position % 2 === 0) {
-        row += 1;
-        hubRow += 1;
-      }
-      const leftToRight = hubRow % 2 === 1;
-      placed.push({ kind: "hub", trail, index, row, column: leftToRight ? 1 + (position % 2) : 2 - (position % 2) });
-    });
-  });
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const measure = () => {
-      const origin = container.getBoundingClientRect();
-      const boxes = hubRefs.current.slice(0, trails.length).map((element) => {
-        const circle = element?.firstElementChild?.getBoundingClientRect();
-        const block = element?.getBoundingClientRect();
-        if (!circle || !block) return null;
-        return {
-          x: circle.left + circle.width / 2 - origin.left,
-          y: circle.top + circle.height / 2 - origin.top,
-          top: circle.top - origin.top,
-          bottom: block.bottom - origin.top,
-        };
-      });
-      const half = HUB_SIZE / 2;
-      const next: TrailSegment[] = [];
-      boxes.slice(1).forEach((b, i) => {
-        const a = boxes[i];
-        if (!a || !b) return;
-        const status = lessonStatus(trails[i + 1]);
-        if (Math.abs(a.y - b.y) < 1) {
-          const dir = Math.sign(b.x - a.x);
-          next.push({ d: `M${a.x + dir * half} ${a.y} L${b.x - dir * half} ${b.y}`, status });
-        } else {
-          const midY = (a.bottom + b.top) / 2;
-          next.push({ d: `M${a.x} ${a.bottom + 4} C${a.x} ${midY} ${b.x} ${midY} ${b.x} ${b.top - 4}`, status });
-        }
-      });
-      setSegments(next);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [trails, open]);
-
-  return (
-    <div ref={containerRef} className="unit-trail">
-      <svg
-        className="pointer-events-none absolute inset-0 size-full overflow-visible"
-        fill="none"
-        strokeWidth="4"
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        {segments.map((segment, index) => (
-          <path
-            key={index}
-            d={segment.d}
-            className={segment.status === "locked" ? "stroke-line-strong" : "stroke-brand"}
-            strokeDasharray={segment.status === "locked" ? "2 8" : undefined}
-          />
-        ))}
-      </svg>
-      {placed.map((item) =>
-        item.kind === "heading" ? (
-          <h3
-            key={`h${item.row}`}
-            className={`unit-trail__heading ${item.sub ? "unit-trail__heading--sub" : ""}`}
-            style={{ "--row": item.row } as CSSProperties}
-          >
-            {item.part ? (
-              <button
-                type="button"
-                className="unit-trail__toggle"
-                aria-expanded={item.expanded}
-                onClick={() => toggle(item.part!)}
-              >
-                {item.title}
-                <Icon
-                  name="chevron"
-                  className={`size-5 shrink-0 transition-transform ${item.expanded ? "rotate-180" : ""}`}
-                />
-              </button>
-            ) : (
-              <span>{item.title}</span>
-            )}
-          </h3>
-        ) : (
-          <div
-            key={item.index}
-            ref={(element) => {
-              hubRefs.current[item.index] = element;
-            }}
-            className="unit-trail__hub"
-            style={{ "--row": item.row, "--column": item.column } as CSSProperties}
-          >
-            <LessonHub trail={item.trail} onSelect={onSelect} />
-          </div>
-        ),
-      )}
-    </div>
-  );
 }
 
 /** Address of a module page ("#modulo/caged"), from the stable lesson keys ("caged/major/C"). */
@@ -764,7 +580,7 @@ function ModulePage({
           </div>
         </section>
         <div className="pt-3">
-          <UnitTrail section={section} onSelect={onSelect} />
+          <LessonList section={section} onSelect={onSelect} />
         </div>
       </main>
     </div>
