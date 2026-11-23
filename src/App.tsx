@@ -112,23 +112,37 @@ const scaleSymbol = (step: ScaleStep) =>
     naturalMinor: "m",
     harmonicMinor: "m",
     melodicMinor: "m",
+    wholeTone: "7(♯5)",
+    diminished: "7(♭9)",
+    majorPentatonic: "",
+    minorPentatonic: "m",
   }[step.quality];
 
-/** The three minor scales: "menor natural" / "natural minor", "menor harmônica" … */
-const MINOR_SCALE_NAMES: Partial<Record<ScaleStep["quality"], Localized>> = {
+/**
+ * Scales that share a position with others in one lesson (the three minor scales, the three
+ * dominant scales): "menor natural" / "natural minor", "tons inteiros" / "whole-tone" …
+ */
+const SHARED_SCALE_NAMES: Partial<Record<ScaleStep["quality"], Localized>> = {
   naturalMinor: { pt: "menor natural", en: "natural minor" },
   harmonicMinor: { pt: "menor harmônica", en: "harmonic minor" },
   melodicMinor: { pt: "menor melódica", en: "melodic minor" },
+  altered: { pt: "alterada", en: "altered" },
+  wholeTone: { pt: "tons inteiros", en: "whole-tone" },
+  diminished: { pt: "diminuta", en: "diminished" },
+  majorPentatonic: { pt: "pentatônica maior", en: "major pentatonic" },
+  minorPentatonic: { pt: "pentatônica menor", en: "minor pentatonic" },
 };
+
+/** "posição 3 (Lídio aumentado)", or just "posição 3" for a scale with no mode. */
+const positionText = (step: ScaleStep, l: (text: Localized) => string, lang: Lang) =>
+  `${lang === "en" ? "position" : "posição"} ${step.position}${step.mode ? ` (${l(step.mode)})` : ""}`;
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Key of a scale in words: "C maior" / "A minor" / "B diminuto" / "C alterada" / "A harmonic minor". */
 const scaleName = (step: ScaleStep, lang: Lang) =>
-  MINOR_SCALE_NAMES[step.quality]
-    ? `${step.root} ${MINOR_SCALE_NAMES[step.quality]![lang]}`
-    : step.quality === "altered"
-    ? `${step.root} ${lang === "en" ? "altered" : "alterada"}`
+  SHARED_SCALE_NAMES[step.quality]
+    ? `${step.root} ${SHARED_SCALE_NAMES[step.quality]![lang]}`
     : ["major", "minor", "dim"].includes(step.quality)
     ? `${step.root} ${(lang === "en" ? { major: "major", minor: "minor", dim: "diminished" } : { major: "maior", minor: "menor", dim: "diminuto" })[step.quality as "major" | "minor" | "dim"]}`
     : chordName(scaleSymbol(step), lang);
@@ -197,6 +211,8 @@ function LessonHub({ trail, onSelect }: { trail: TrailData; onSelect: (lesson: L
   const centerSymbol = chordName(
     status === "current"
       ? variationKey(next) + (quality === "M" ? "" : quality)
+      : scaleStep?.shape
+        ? scaleStep.shape
       : scaleStep?.showFingers
         ? t(`${6 - scaleStep.notes[0].string}ª`, ORDINAL_EN[6 - scaleStep.notes[0].string])
         : scaleStep && !scaleStep.label
@@ -641,19 +657,24 @@ function NextLesson({ sections: all, onSelect }: { sections: Section[]; onSelect
 }
 
 /** The dashboard: home of the app, with the overall progress and the modules. */
-/** Module groups on the dashboard: chord modules, then scales and arpeggios (modules 4–8). */
-const SCALE_MODULES = new Set([4, 5, 6, 7, 8]);
+/** Module groups on the dashboard: chord modules, then the scales (4, 8, 7, 9), then arpeggios (5, 6). */
+const SCALE_MODULES = new Set([4, 7, 8, 9]);
+const ARPEGGIO_MODULES = new Set([5, 6]);
 const DASHBOARD_GROUPS: Array<{
   title: Localized;
   sections: (id: number) => boolean;
 }> = [
   {
     title: { pt: "Acordes", en: "Chords" },
-    sections: (id) => !SCALE_MODULES.has(id),
+    sections: (id) => !SCALE_MODULES.has(id) && !ARPEGGIO_MODULES.has(id),
   },
   {
-    title: { pt: "Escalas e Arpejos", en: "Scales and Arpeggios" },
+    title: { pt: "Escalas", en: "Scales" },
     sections: (id) => SCALE_MODULES.has(id),
+  },
+  {
+    title: { pt: "Arpejos", en: "Arpeggios" },
+    sections: (id) => ARPEGGIO_MODULES.has(id),
   },
 ];
 
@@ -814,8 +835,8 @@ function ScaleDiagram({ step, activeNote = null }: { step: ScaleStep; /** Index 
         step.label
           ? t(`${l(step.label)}, casas ${low} a ${high}`, `${l(step.label)}, frets ${low} to ${high}`)
           : t(
-              `${scaleName(step, lang)}, posição ${step.position} (${l(step.mode)}), casas ${low} a ${high}`,
-              `${scaleName(step, lang)}, position ${step.position} (${l(step.mode)}), frets ${low} to ${high}`,
+              `${scaleName(step, lang)}, ${positionText(step, l, "pt")}, casas ${low} a ${high}`,
+              `${scaleName(step, lang)}, ${positionText(step, l, "en")}, frets ${low} to ${high}`,
             )
       }
     >
@@ -970,14 +991,14 @@ function ScaleCard({
           <p className="font-display text-[18px] font-bold tracking-[-0.02em] text-ink">
             {step.label
               ? l(step.label)
-              : MINOR_SCALE_NAMES[step.quality]
+              : SHARED_SCALE_NAMES[step.quality]
                 ? // The three minor scales share the position: the card is named by its scale.
-                  capitalize(l(MINOR_SCALE_NAMES[step.quality]!))
+                  capitalize(l(SHARED_SCALE_NAMES[step.quality]!))
                 : t(`Posição ${step.position}`, `Position ${step.position}`)}
           </p>
           {!step.label && (
             <p className="text-sm font-medium text-muted">
-              {MINOR_SCALE_NAMES[step.quality] ? t(`Posição ${step.position}`, `Position ${step.position}`) : l(step.mode)}
+              {SHARED_SCALE_NAMES[step.quality] ? t(`Posição ${step.position}`, `Position ${step.position}`) : step.mode && l(step.mode)}
             </p>
           )}
           {step.showFingers && fingerHint && (
@@ -1938,8 +1959,8 @@ function ExercisePage({
               scaleStep.instruction
                 ? l(scaleStep.instruction)
                 : t(
-                    `Toque ${scaleName(scaleStep, lang)} na posição ${scaleStep.position} (${l(scaleStep.mode)}), subindo e descendo.`,
-                    `Play ${scaleName(scaleStep, lang)} in position ${scaleStep.position} (${l(scaleStep.mode)}), up and down.`,
+                    `Toque ${scaleName(scaleStep, lang)} na ${positionText(scaleStep, l, "pt")}, subindo e descendo.`,
+                    `Play ${scaleName(scaleStep, lang)} in ${positionText(scaleStep, l, "en")}, up and down.`,
                   )
             }
           />
@@ -2747,7 +2768,7 @@ function ScalesGuide({ onBack }: { onBack: () => void }) {
   );
   return (
     <GuideLayout
-      title={t("7 posições do modo jônio", "7 positions of the Ionian mode")}
+      title={t("7 posições da escala maior", "7 positions of the major scale")}
       sources={SCALE_SOURCES}
       onBack={onBack}
       intro={t(
@@ -2862,9 +2883,18 @@ function ScalesGuide({ onBack }: { onBack: () => void }) {
   );
 }
 
-const ALTERED_SOURCES: GuideSource[] = [
+const DOMINANT_SOURCES: GuideSource[] = [
   { label: "Wikipedia — Altered scale", url: "https://en.wikipedia.org/wiki/Altered_scale" },
+  { label: "Wikipedia — Whole-tone scale", url: "https://en.wikipedia.org/wiki/Whole-tone_scale" },
+  { label: "Wikipedia — Octatonic scale", url: "https://en.wikipedia.org/wiki/Octatonic_scale" },
   { label: "Wikipedia — Melodic minor scale", url: "https://en.wikipedia.org/wiki/Minor_scale#Melodic_minor_scale" },
+];
+
+/** The three dominant scales in C: name, notes and degrees. */
+const DOMINANT_SCALES_IN_C: Array<{ name: Localized; notes: string; degrees: string }> = [
+  { name: { pt: "Alterada", en: "Altered" }, notes: "C D♭ E♭ E F♯ G♯ B♭", degrees: "1 ♭2 ♯2 3 ♯4 ♯5 ♭7" },
+  { name: { pt: "Tons inteiros", en: "Whole-tone" }, notes: "C D E F♯ G♯ B♭", degrees: "1 2 3 ♯4 ♯5 ♭7" },
+  { name: { pt: "Diminuta (semitom-tom)", en: "Diminished (half-whole)" }, notes: "C D♭ E♭ E F♯ G A B♭", degrees: "1 ♭2 ♯2 3 ♯4 5 6 ♭7" },
 ];
 
 /** The seven positions of C altered: the degree and note each one starts on (6th string) and its mode. */
@@ -2878,58 +2908,91 @@ const ALTERED_POSITIONS: Array<{ degree: string; note: string; mode: Localized }
   { degree: "♭7", note: "B♭", mode: { pt: "Lócrio ♮2", en: "Locrian ♮2" } },
 ];
 
-function AlteredGuide({ onBack }: { onBack: () => void }) {
+function DominantScalesGuide({ onBack }: { onBack: () => void }) {
   const { t, l } = useI18n();
-  // C altered in each position, from the shape lessons ("altered/p1/C" … "p7/C").
-  const byPosition = [1, 2, 3, 4, 5, 6, 7].flatMap(
-    (position) => lessons.find((lesson) => lesson.key === `altered/p${position}/C`)?.scale ?? [],
+  // C7 in each position, from the lessons of the three groups ("altered/p1/C", "altered/wholetone/p1/C",
+  // "altered/diminished/p1/C" …): altered, whole-tone, diminished.
+  const byPosition = [1, 2, 3, 4, 5, 6, 7].map((position) =>
+    ["", "wholetone/", "diminished/"].flatMap(
+      (group) => lessons.find((lesson) => lesson.key === `altered/${group}p${position}/C`)?.scale ?? [],
+    ),
   );
   return (
     <GuideLayout
-      title={t("7 posições da escala alterada", "7 positions of the altered scale")}
-      sources={ALTERED_SOURCES}
+      title={t("7 posições das escalas dominantes", "7 positions of the dominant scales")}
+      sources={DOMINANT_SOURCES}
       onBack={onBack}
       intro={t(
         <>
-          A escala alterada é a escala do acorde dominante com todas as tensões alteradas. Com sete
-          posições, uma começando em cada nota da escala, você a toca em qualquer região do braço.
+          Sobre um acorde dominante você pode tocar escalas que trazem tensões diferentes. Neste módulo você
+          aprende três delas, cada uma no seu grupo de aulas: a alterada, a de tons inteiros e a diminuta. As
+          três usam as mesmas sete posições, então você as encontra em qualquer região do braço.
         </>,
         <>
-          The altered scale is the scale of the dominant chord with every tension altered. With seven
-          positions, one starting on each note of the scale, you play it anywhere on the neck.
+          Over a dominant chord you can play scales that bring different tensions. In this module you learn three
+          of them, each in its own group of lessons: the altered, the whole-tone and the diminished scale. All
+          three use the same seven positions, so you find them anywhere on the neck.
         </>,
       )}
     >
-      <GuideSection title={t("A escala alterada", "The altered scale")}>
+      <GuideSection title={t("As três escalas dominantes", "The three dominant scales")}>
         {t(
           <p>
-            Em C: <strong>C D♭ E♭ E F♯ G♯ B♭</strong>. Ela tem a tônica, a terça maior (3) e a sétima menor
-            (♭7) do acorde C7, e todas as outras notas são tensões alteradas: <strong>♭2</strong> (♭9),{" "}
-            <strong>♯2</strong> (♯9), <strong>♯4</strong> (♯11) e <strong>♯5</strong> (♭13). É o 7º modo da
-            escala menor melódica: C alterada tem as mesmas notas de D♭ menor melódica. Use-a sobre um
-            acorde dominante que resolve, como o C7 de um V–I em F.
+            As três têm a tônica, a terça maior (3) e a sétima menor (♭7) do acorde C7; o que muda são as
+            tensões. A <strong>alterada</strong> tem todas as tensões alteradas: ♭9 (♭2), ♯9 (♯2), ♯11 (♯4) e
+            ♭13 (♯5). É o 7º modo da menor melódica: C alterada tem as notas de D♭ menor melódica. A{" "}
+            <strong>de tons inteiros</strong> tem seis notas, todas a um tom de distância: 9, ♯11 e ♯5, o som do
+            C7(♯5). A <strong>diminuta</strong> (semitom-tom) tem oito notas, alternando semitom e tom: ♭9, ♯9,
+            ♯11, com a 5ª e a 13ª naturais, o som do C7(♭9). Use-as sobre um acorde dominante que resolve, como o
+            C7 de um V–I em F.
           </p>,
           <p>
-            In C: <strong>C D♭ E♭ E F♯ G♯ B♭</strong>. It has the root, the major third (3) and the minor
-            seventh (♭7) of C7, and every other note is an altered tension: <strong>♭2</strong> (♭9),{" "}
-            <strong>♯2</strong> (♯9), <strong>♯4</strong> (♯11) and <strong>♯5</strong> (♭13). It is the 7th
-            mode of the melodic minor scale: C altered has the same notes as D♭ melodic minor. Use it over a
+            All three have the root, the major third (3) and the minor seventh (♭7) of C7; what changes are the
+            tensions. The <strong>altered</strong> scale has every tension altered: ♭9 (♭2), ♯9 (♯2), ♯11 (♯4)
+            and ♭13 (♯5). It is the 7th mode of the melodic minor: C altered has the notes of D♭ melodic minor.
+            The <strong>whole-tone</strong> scale has six notes, all a whole step apart: 9, ♯11 and ♯5, the
+            sound of C7(♯5). The <strong>diminished</strong> (half-whole) scale has eight notes, alternating half
+            and whole steps: ♭9, ♯9, ♯11, with a natural 5th and 13th, the sound of C7(♭9). Use them over a
             dominant chord that resolves, like the C7 of a V–I in F.
           </p>,
         )}
+        <div className="!mt-6 overflow-x-auto rounded-card border border-line bg-surface">
+          <table className="w-full min-w-[420px] text-left text-sm">
+            <thead className="border-b border-line text-muted">
+              <tr>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Escala", "Scale")}</th>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Notas em C", "Notes in C")}</th>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Graus", "Degrees")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {DOMINANT_SCALES_IN_C.map((item) => (
+                <tr key={item.notes} className="border-b border-line last:border-b-0">
+                  <td className="px-4 py-3 font-semibold text-ink">{l(item.name)}</td>
+                  <td className="px-4 py-3 text-ink-2">{item.notes}</td>
+                  <td className="px-4 py-3 font-mono text-ink">{item.degrees}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </GuideSection>
 
       <GuideSection title={t("As sete posições", "The seven positions")}>
         {t(
           <p>
-            Como no módulo do modo jônio, cada posição começa num grau diferente da escala na 6ª corda e vai
-            até a 1ª com <strong>três notas por corda, menos uma corda com duas</strong>. O desenho de cada
-            posição é o de um modo da escala menor melódica. Em C:
+            As posições vêm da escala alterada. Como no módulo da escala maior, cada posição começa num grau
+            diferente da alterada na 6ª corda e vai até a 1ª com{" "}
+            <strong>três notas por corda, menos uma corda com duas</strong>; o desenho de cada uma é o de um modo
+            da menor melódica. A de tons inteiros e a diminuta não têm modos (são simétricas): em cada posição
+            elas ficam nas mesmas casas da alterada, corda por corda. Em C:
           </p>,
           <p>
-            As in the Ionian module, each position starts on a different degree of the scale on the 6th
-            string and goes up to the 1st with <strong>three notes per string, except one string with
-            two</strong>. The shape of each position is that of a mode of the melodic minor scale. In C:
+            The positions come from the altered scale. As in the major scale module, each position starts on a
+            different degree of the altered scale on the 6th string and goes up to the 1st with{" "}
+            <strong>three notes per string, except one string with two</strong>; each shape is that of a mode of
+            the melodic minor. The whole-tone and diminished scales have no modes (they are symmetric): in each
+            position they stay on the frets of the altered shape, string by string. In C:
           </p>,
         )}
         <div className="!mt-6 overflow-x-auto rounded-card border border-line bg-surface">
@@ -2956,20 +3019,42 @@ function AlteredGuide({ onBack }: { onBack: () => void }) {
         </div>
       </GuideSection>
 
+      <GuideSection title={t("As três escalas na posição 1", "The three scales in position 1")}>
+        {t(
+          <p>
+            C7 na posição 1. Cada ponto mostra o grau da nota; os pontos azuis são a tônica (C). Os números
+            abaixo do diagrama são as casas.
+          </p>,
+          <p>
+            C7 in position 1. Each dot shows the degree of its note; the blue dots are the tonic (C). The numbers
+            under the diagram are the frets.
+          </p>,
+        )}
+        <div className="!mt-6 grid gap-4">
+          {byPosition[0].map((step) => (
+            <ScaleCard key={step.quality} step={step} />
+          ))}
+        </div>
+      </GuideSection>
+
       <GuideSection title={t("As posições em C alterada", "The positions in C altered")}>
         {t(
           <p>
-            Cada ponto mostra o grau da nota; os pontos azuis são a tônica (C). Os números abaixo do
-            diagrama são as casas.
+            As sete posições da alterada. A de tons inteiros e a diminuta usam as mesmas regiões do braço,
+            cada uma no seu grupo de aulas.
           </p>,
           <p>
-            Each dot shows the degree of its note; the blue dots are the tonic (C). The numbers under the
-            diagram are the frets.
+            The seven positions of the altered scale. The whole-tone and diminished scales use the same areas of
+            the neck, each in its own group of lessons.
           </p>,
         )}
         <div className="!mt-6 grid gap-4 sm:grid-cols-2">
-          {byPosition.map((step) => (
-            <ScaleCard key={step.position} step={step} />
+          {byPosition.map((steps) => steps[0]).filter(Boolean).map((step) => (
+            <ScaleCard
+              key={step.position}
+              // Named by its position and mode here (the scale is the same in every card).
+              step={{ ...step, quality: "7" }}
+            />
           ))}
         </div>
       </GuideSection>
@@ -2977,22 +3062,27 @@ function AlteredGuide({ onBack }: { onBack: () => void }) {
       <GuideSection title={t("Como estudar", "How to practise")}>
         {t(
           <ol className="list-decimal space-y-2 pl-5">
-            <li>Cada aula é um desenho: a posição 1, a posição 2 e assim por diante, até a 7.</li>
+            <li>
+              Cada escala é um grupo de aulas, e cada aula é uma posição: a posição 1, a posição 2 e assim por
+              diante, até a 7.
+            </li>
             <li>Cada aula tem uma variação para cada tonalidade, no ciclo de quartas.</li>
             <li>
-              Toque o desenho subindo e descendo, com o metrônomo, e localize a tônica, a terça e a sétima
-              do acorde dominante: as outras notas são as tensões.
+              Toque cada escala subindo e descendo, com o metrônomo, e localize a tônica, a terça e a sétima
+              do acorde dominante: as outras notas são as tensões, e são elas que mudam de uma escala para a
+              outra.
             </li>
-            <li>Depois, improvise sobre um V–I (C7 → F) usando a escala alterada no acorde dominante.</li>
+            <li>Depois, improvise sobre um V–I (C7 → F) trocando de escala no acorde dominante.</li>
           </ol>,
           <ol className="list-decimal space-y-2 pl-5">
-            <li>Each lesson is one shape: position 1, position 2 and so on, up to 7.</li>
+            <li>Each scale is a group of lessons, and each lesson is one position: position 1, position 2 and so on, up to 7.</li>
             <li>Each lesson has a variation for every key, in the cycle of fourths.</li>
             <li>
-              Play the shape up and down with the metronome, and find the root, third and seventh of the
-              dominant chord: the other notes are the tensions.
+              Play each scale up and down with the metronome, and find the root, third and seventh of the
+              dominant chord: the other notes are the tensions, and they are what changes from one scale to the
+              next.
             </li>
-            <li>Then improvise over a V–I (C7 → F) using the altered scale on the dominant chord.</li>
+            <li>Then improvise over a V–I (C7 → F), switching scales on the dominant chord.</li>
           </ol>,
         )}
       </GuideSection>
@@ -3015,9 +3105,12 @@ const MINOR_SCALES_IN_A: Array<{ name: Localized; notes: string; degrees: string
 
 function MinorScalesGuide({ onBack }: { onBack: () => void }) {
   const { t, l } = useI18n();
-  // The positions of A minor, from the lessons ("minor/p1/A" … "p7/A"): three scales each.
-  const byPosition = [1, 2, 3, 4, 5, 6, 7].map(
-    (position) => lessons.find((lesson) => lesson.key === `minor/p${position}/A`)?.scale ?? [],
+  // The positions of A minor, from the lessons of the three groups ("minor/p1/A", "minor/harmonic/p1/A",
+  // "minor/melodic/p1/A" …): natural, harmonic, melodic.
+  const byPosition = [1, 2, 3, 4, 5, 6, 7].map((position) =>
+    ["", "harmonic/", "melodic/"].flatMap(
+      (group) => lessons.find((lesson) => lesson.key === `minor/${group}p${position}/A`)?.scale ?? [],
+    ),
   );
   return (
     <GuideLayout
@@ -3026,12 +3119,12 @@ function MinorScalesGuide({ onBack }: { onBack: () => void }) {
       onBack={onBack}
       intro={t(
         <>
-          Existem três escalas menores, e elas só diferem na 6ª e na 7ª notas. Neste módulo você toca as três
-          na mesma posição, uma depois da outra, para sentir nos dedos e ouvir essa diferença sutil.
+          Existem três escalas menores, e elas só diferem na 6ª e na 7ª notas. Neste módulo cada uma tem o seu
+          grupo de aulas, nas mesmas sete posições, para você sentir nos dedos e ouvir essa diferença sutil.
         </>,
         <>
-          There are three minor scales, and they differ only in their 6th and 7th notes. In this module you play
-          all three in the same position, one after the other, to feel and hear that subtle difference.
+          There are three minor scales, and they differ only in their 6th and 7th notes. In this module each one has its
+          own group of lessons, in the same seven positions, so you feel and hear that subtle difference.
         </>,
       )}
     >
@@ -3079,18 +3172,19 @@ function MinorScalesGuide({ onBack }: { onBack: () => void }) {
       <GuideSection title={t("As sete posições", "The seven positions")}>
         {t(
           <p>
-            Como no módulo do modo jônio, cada posição começa num grau diferente da escala na 6ª corda, com{" "}
+            Como no módulo da escala maior, cada posição começa num grau diferente da escala na 6ª corda, com{" "}
             <strong>três notas por corda, menos uma corda com duas</strong>. A posição 1 começa na tônica, a 2 no
-            2º grau, e assim por diante. Cada aula é uma posição, e cada tonalidade tem três exercícios na mesma
-            região do braço: menor natural, menor harmônica e menor melódica. Só a 6ª e a 7ª mudam de casa, e
-            elas aparecem marcadas com um anel nos diagramas.
+            2º grau, e assim por diante. O módulo tem um grupo de aulas para cada escala (menor natural, menor
+            harmônica e menor melódica), com uma aula por posição. Em cada posição as três escalas ficam na mesma
+            região do braço: só a 6ª e a 7ª mudam de casa, e elas aparecem marcadas com um anel nos diagramas.
           </p>,
           <p>
-            As in the Ionian module, each position starts on a different degree of the scale on the 6th string,
+            As in the major scale module, each position starts on a different degree of the scale on the 6th string,
             with <strong>three notes per string, except one string with two</strong>. Position 1 starts on the
-            tonic, position 2 on the 2nd degree, and so on. Each lesson is one position, and each key has three
-            exercises in the same area of the neck: natural minor, harmonic minor and melodic minor. Only the 6th
-            and the 7th move, and they are marked with a ring on the diagrams.
+            tonic, position 2 on the 2nd degree, and so on. The module has a group of lessons for each scale
+            (natural, harmonic and melodic minor), with one lesson per position. In each position the three scales
+            stay in the same area of the neck: only the 6th and the 7th move, and they are marked with a ring on
+            the diagrams.
           </p>,
         )}
       </GuideSection>
@@ -3118,12 +3212,12 @@ function MinorScalesGuide({ onBack }: { onBack: () => void }) {
       <GuideSection title={t("As posições em A menor natural", "The positions in A natural minor")}>
         {t(
           <p>
-            As sete posições da menor natural. Nas aulas, cada posição traz também a harmônica e a melódica, na
-            mesma região do braço.
+            As sete posições da menor natural. A harmônica e a melódica usam as mesmas regiões do braço, cada uma
+            no seu grupo de aulas.
           </p>,
           <p>
-            The seven positions of the natural minor. In the lessons, each position also has the harmonic and the
-            melodic minor, in the same area of the neck.
+            The seven positions of the natural minor. The harmonic and melodic minor use the same areas of the
+            neck, each in its own group of lessons.
           </p>,
         )}
         <div className="!mt-6 grid gap-4 sm:grid-cols-2">
@@ -3140,24 +3234,174 @@ function MinorScalesGuide({ onBack }: { onBack: () => void }) {
       <GuideSection title={t("Como estudar", "How to practise")}>
         {t(
           <ol className="list-decimal space-y-2 pl-5">
-            <li>Cada aula é uma posição: a posição 1, a posição 2 e assim por diante, até a 7.</li>
+            <li>
+              Cada escala é um grupo de aulas, e cada aula é uma posição: a posição 1, a posição 2 e assim por
+              diante, até a 7.
+            </li>
             <li>Cada aula tem uma variação para cada tonalidade, no ciclo de quartas.</li>
             <li>
-              Toque as três escalas subindo e descendo, com o metrônomo, e repare nas notas marcadas: na natural,
-              ♭6 e ♭7; na harmônica, só a 7 sobe; na melódica, sobem as duas.
+              Toque a escala subindo e descendo, com o metrônomo, e repare nas notas marcadas: na natural, ♭6 e
+              ♭7; na harmônica, só a 7 sobe; na melódica, sobem as duas.
             </li>
             <li>
-              Na sequência completa, toque as três seguidas e ouça como uma única nota muda o caráter da escala.
+              Depois de aprender uma posição nas três escalas, toque-as seguidas e ouça como uma única nota muda o
+              caráter da escala.
             </li>
           </ol>,
           <ol className="list-decimal space-y-2 pl-5">
-            <li>Each lesson is one position: position 1, position 2 and so on, up to 7.</li>
+            <li>Each scale is a group of lessons, and each lesson is one position: position 1, position 2 and so on, up to 7.</li>
             <li>Each lesson has a variation for every key, in the cycle of fourths.</li>
             <li>
-              Play the three scales up and down with the metronome and watch the marked notes: ♭6 and ♭7 in the
-              natural minor; in the harmonic minor only the 7th goes up; in the melodic minor both do.
+              Play the scale up and down with the metronome and watch the marked notes: ♭6 and ♭7 in the natural
+              minor; in the harmonic minor only the 7th goes up; in the melodic minor both do.
             </li>
-            <li>In the full sequence, play all three in a row and hear how a single note changes the scale.</li>
+            <li>
+              Once you know a position in all three scales, play them in a row and hear how a single note changes
+              the scale.
+            </li>
+          </ol>,
+        )}
+      </GuideSection>
+    </GuideLayout>
+  );
+}
+
+const PENTATONIC_SOURCES: GuideSource[] = [
+  { label: "Wikipedia — Pentatonic scale", url: "https://en.wikipedia.org/wiki/Pentatonic_scale" },
+  { label: "Wikipedia — CAGED system", url: "https://en.wikipedia.org/wiki/CAGED_system" },
+];
+
+/** The two pentatonics in their keys: name, notes and degrees. */
+const PENTATONICS_IN_C: Array<{ name: Localized; notes: string; degrees: string }> = [
+  { name: { pt: "Pentatônica maior de C", en: "C major pentatonic" }, notes: "C D E G A", degrees: "1 2 3 5 6" },
+  { name: { pt: "Pentatônica menor de A", en: "A minor pentatonic" }, notes: "A C D E G", degrees: "1 ♭3 4 5 ♭7" },
+];
+
+function PentatonicGuide({ onBack }: { onBack: () => void }) {
+  const { t } = useI18n();
+  // The five shapes of C major and A minor, from the lessons ("pentatonic/major/C/C" …).
+  const shapesOf = (quality: string, root: string, shapes: string[]) =>
+    shapes.flatMap((shape) => lessons.find((lesson) => lesson.key === `pentatonic/${quality}/${shape}/${root}`)?.scale ?? []);
+  const major = shapesOf("major", "C", ["C", "A", "G", "E", "D"]);
+  const minor = shapesOf("minor", "A", ["Am", "Gm", "Em", "Dm", "Cm"]);
+  return (
+    <GuideLayout
+      title={t("Pentatônicas no CAGED", "Pentatonics with CAGED")}
+      sources={PENTATONIC_SOURCES}
+      onBack={onBack}
+      intro={t(
+        <>
+          A pentatônica tem cinco notas e é a escala mais usada para improvisar no rock, no blues e no pop. Ligada
+          às cinco formas do CAGED, ela fica em volta dos acordes que você já conhece, em qualquer região do braço.
+        </>,
+        <>
+          The pentatonic scale has five notes and is the most used scale for improvising in rock, blues and pop.
+          Tied to the five CAGED shapes, it sits around chords you already know, anywhere on the neck.
+        </>,
+      )}
+    >
+      <GuideSection title={t("Pentatônica maior e menor", "Major and minor pentatonic")}>
+        {t(
+          <p>
+            A <strong>pentatônica maior</strong> é a escala maior sem a 4ª e a 7ª: só os graus 1 2 3 5 6. A{" "}
+            <strong>pentatônica menor</strong> é a menor natural sem a 2ª e a ♭6: 1 ♭3 4 5 ♭7. Como a escala
+            maior e a sua relativa menor, as duas pentatônicas relativas têm as mesmas notas: C maior e A menor
+            usam C D E G A, e os desenhos no braço são os mesmos. O que muda é a tônica.
+          </p>,
+          <p>
+            The <strong>major pentatonic</strong> is the major scale without the 4th and the 7th: just degrees 1 2
+            3 5 6. The <strong>minor pentatonic</strong> is the natural minor without the 2nd and the ♭6: 1 ♭3 4 5
+            ♭7. Like the major scale and its relative minor, the two relative pentatonics share their notes: C
+            major and A minor both use C D E G A, and the shapes on the neck are the same. What changes is the
+            tonic.
+          </p>,
+        )}
+        <div className="!mt-6 overflow-x-auto rounded-card border border-line bg-surface">
+          <table className="w-full min-w-[420px] text-left text-sm">
+            <thead className="border-b border-line text-muted">
+              <tr>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Escala", "Scale")}</th>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Notas", "Notes")}</th>
+                <th className="eyebrow px-4 py-3 font-medium">{t("Graus", "Degrees")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PENTATONICS_IN_C.map((item) => (
+                <tr key={item.notes} className="border-b border-line last:border-b-0">
+                  <td className="px-4 py-3 font-semibold text-ink">{t(item.name.pt, item.name.en)}</td>
+                  <td className="px-4 py-3 text-ink-2">{item.notes}</td>
+                  <td className="px-4 py-3 font-mono text-ink">{item.degrees}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </GuideSection>
+
+      <GuideSection title={t("As cinco formas", "The five shapes")}>
+        {t(
+          <p>
+            Cada forma é uma “caixa” com <strong>duas notas por corda</strong>, da 6ª à 1ª, e leva o nome da forma
+            do CAGED que ela envolve: a forma de C da pentatônica maior fica em volta do acorde na forma de C, e
+            assim por diante. As formas se encadeiam subindo o braço na ordem C, A, G, E, D, e a última emenda na
+            primeira uma oitava acima. Na pentatônica menor, as formas levam o nome dos acordes menores (Am, Gm,
+            Em, Dm, Cm). Toque com um dedo por casa; nas formas em que a 2ª corda empurra a caixa para cinco casas,
+            a mão sobe uma casa nas duas cordas mais agudas.
+          </p>,
+          <p>
+            Each shape is a “box” with <strong>two notes per string</strong>, from the 6th to the 1st, named after
+            the CAGED shape it surrounds: the major pentatonic's C shape sits around the C-shape chord, and so on.
+            The shapes link up the neck in the order C, A, G, E, D, and the last one joins the first an octave up.
+            In the minor pentatonic, the shapes are named after the minor chords (Am, Gm, Em, Dm, Cm). Play one
+            finger per fret; in the shapes where the 2nd string pushes the box to five frets, the hand moves up one
+            fret on the two highest strings.
+          </p>,
+        )}
+      </GuideSection>
+
+      <GuideSection title={t("As formas da pentatônica maior de C", "The shapes of C major pentatonic")}>
+        {t(
+          <p>Cada ponto mostra o grau da nota; os pontos azuis são a tônica (C). Os números abaixo do diagrama são as casas.</p>,
+          <p>Each dot shows the degree of its note; the blue dots are the tonic (C). The numbers under the diagram are the frets.</p>,
+        )}
+        <div className="!mt-6 grid gap-4 sm:grid-cols-2">
+          {major.map((step) => (
+            <ScaleCard key={step.shape} step={step} />
+          ))}
+        </div>
+      </GuideSection>
+
+      <GuideSection title={t("As formas da pentatônica menor de A", "The shapes of A minor pentatonic")}>
+        {t(
+          <p>As mesmas caixas, agora com a tônica em A: compare com as formas de C maior acima.</p>,
+          <p>The same boxes, now with the tonic on A: compare them with the C major shapes above.</p>,
+        )}
+        <div className="!mt-6 grid gap-4 sm:grid-cols-2">
+          {minor.map((step) => (
+            <ScaleCard key={step.shape} step={step} />
+          ))}
+        </div>
+      </GuideSection>
+
+      <GuideSection title={t("Como estudar", "How to practise")}>
+        {t(
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>Cada pentatônica é um grupo de aulas, e cada aula é uma forma do CAGED.</li>
+            <li>Cada aula tem uma variação para cada tonalidade, no ciclo de quartas.</li>
+            <li>
+              Toque a forma subindo e descendo, com o metrônomo, e localize a tônica: ela é a mesma do acorde na
+              forma de mesmo nome.
+            </li>
+            <li>Depois, toque o acorde e improvise com a forma em volta dele.</li>
+          </ol>,
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>Each pentatonic is a group of lessons, and each lesson is one CAGED shape.</li>
+            <li>Each lesson has a variation for every key, in the cycle of fourths.</li>
+            <li>
+              Play the shape up and down with the metronome and find the tonic: it is the same as in the chord of
+              the shape with the same name.
+            </li>
+            <li>Then play the chord and improvise with the shape around it.</li>
           </ol>,
         )}
       </GuideSection>
@@ -3930,10 +4174,12 @@ export default function App() {
               : guideSection === 6
                 ? SeventhArpeggiosGuide
                 : guideSection === 7
-                  ? AlteredGuide
+                  ? DominantScalesGuide
                   : guideSection === 8
                     ? MinorScalesGuide
-                    : CagedGuide;
+                    : guideSection === 9
+                      ? PentatonicGuide
+                      : CagedGuide;
     return <Guide onBack={() => setGuideSection(null)} />;
   }
 

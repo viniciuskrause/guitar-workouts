@@ -82,13 +82,19 @@ export type ScaleStep = {
     | "altered"
     | "naturalMinor"
     | "harmonicMinor"
-    | "melodicMinor";
+    | "melodicMinor"
+    | "wholeTone"
+    | "diminished"
+    | "majorPentatonic"
+    | "minorPentatonic";
   /** 1–7: the degree of the key (major or minor) the position starts on, on the 6th string. */
   position: number;
-  /** Mode whose shape the position has ("Jônio" … "Lócrio"). */
-  mode: Localized;
+  /** Mode whose shape the position has ("Jônio" … "Lócrio"); none for the symmetric scales (whole tone, diminished). */
+  mode?: Localized;
   /** The 17 notes, ascending; an exercise lists its notes in playing order. */
   notes: ScaleNote[];
+  /** CAGED shape the scale is played in ("C", "Am"): pentatonic boxes, shown on the lesson icon. */
+  shape?: string;
   /** Exercise that is not a position (preparatory lesson): card title, replacing "Posição n" and the mode. */
   label?: Localized;
   /** Lowest and highest fret the diagram shows, when wider than the notes (a range shared by similar scales). */
