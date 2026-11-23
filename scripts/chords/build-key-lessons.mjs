@@ -2543,6 +2543,15 @@ ${triadTrails.join("\n")}
 ${inversionTrails.join("\n")}
     ],
   },
+  // Pentatonics first among the scales (user, 2026-11-23); ids stay.
+  {
+    id: 9,
+    title: ${loc(PENTATONIC_MODULE.title)},
+    subtitle: ${loc(PENTATONIC_MODULE.subtitle)},
+    trails: [
+${pentatonicTrails.join("\n")}
+    ],
+  },
   {
     id: 4,
     title: ${loc(SCALES.title)},
@@ -2582,14 +2591,6 @@ ${minorTrails.join("\n")}
     subtitle: ${loc(ALTERED.subtitle)},
     trails: [
 ${alteredTrails.join("\n")}
-    ],
-  },
-  {
-    id: 9,
-    title: ${loc(PENTATONIC_MODULE.title)},
-    subtitle: ${loc(PENTATONIC_MODULE.subtitle)},
-    trails: [
-${pentatonicTrails.join("\n")}
     ],
   },
 ];
