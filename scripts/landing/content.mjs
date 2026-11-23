@@ -44,7 +44,7 @@ export const content = {
     },
     practice: {
       // Names of the modules (structured data featureList).
-      modules: ["CAGED system exercises", "Triad inversion exercises", "Seventh chord inversion exercises", "Major scale exercises in 7 positions", "Triad arpeggio exercises", "Seventh chord arpeggio exercises", "Altered scale exercises in 7 positions", "Minor scale exercises in 7 positions"],
+      modules: ["CAGED system exercises", "Triad inversion exercises", "Seventh chord inversion exercises", "Major scale exercises in 7 positions", "Triad arpeggio exercises", "Seventh chord arpeggio exercises", "Minor scale exercises in 7 positions", "Dominant scale exercises in 7 positions", "Pentatonic exercises in the CAGED shapes"],
       articles: [
         {
           h: "A complete guitar practice path",
@@ -178,7 +178,7 @@ export const content = {
     },
     practice: {
       // Names of the modules (structured data featureList).
-      modules: ["Exercícios do sistema CAGED", "Exercícios de inversões de tríades", "Exercícios de inversões de tétrades", "Exercícios de escala maior em 7 posições", "Exercícios de arpejos de tríades", "Exercícios de arpejos de tétrades", "Exercícios de escala alterada em 7 posições", "Exercícios de escalas menores em 7 posições"],
+      modules: ["Exercícios do sistema CAGED", "Exercícios de inversões de tríades", "Exercícios de inversões de tétrades", "Exercícios de escala maior em 7 posições", "Exercícios de arpejos de tríades", "Exercícios de arpejos de tétrades", "Exercícios de escalas menores em 7 posições", "Exercícios de escalas dominantes em 7 posições", "Exercícios de pentatônicas nas formas do CAGED"],
       articles: [
         {
           h: "Um caminho completo de prática de guitarra",

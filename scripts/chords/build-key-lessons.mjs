@@ -603,7 +603,7 @@ ${lessons.join("\n")}
 });
 
 // ---------------------------------------------------------------- scales
-// Module "7 Posições do Modo Jônio": the major scale (and its relative natural
+// Module "7 Posições da Escala Maior": the major scale (and its relative natural
 // minor) in seven positions, three notes per string except one string with two
 // (NOTES_PER_STRING). Position n starts on the n-th degree of the major scale on
 // the 6th string, so each position is the
@@ -784,7 +784,7 @@ const PREP = {
 
 // One lesson (trail) per shape: position 1 … 7, each in the 12 keys.
 const SCALES = {
-  title: { pt: "7 Posições do Modo Jônio", en: "7 Positions of the Ionian Mode" },
+  title: { pt: "7 Posições da Escala Maior", en: "7 Positions of the Major Scale" },
   subtitle: {
     pt: "Aprenda a escala do modo jônio e a digitação base para todas as escalas maiores e menores em qualquer região do braço",
     en: "Learn the Ionian mode scale and the base fingering for every major and minor scale anywhere on the neck",
@@ -809,7 +809,8 @@ const renderScaleTrails = (module) =>
           `            root: "${step.root}",`,
           `            quality: "${step.quality}",`,
           `            position: ${step.position},`,
-          `            mode: ${loc(step.mode)},`,
+          ...(step.mode ? [`            mode: ${loc(step.mode)},`] : []),
+          ...(step.shape ? [`            shape: "${step.shape}",`] : []),
           ...(step.label ? [`            label: ${loc(step.label)},`] : []),
           ...(step.leaps ? ["            leaps: true,"] : []),
           ...(step.showFingers ? ["            showFingers: true,"] : []),
@@ -874,7 +875,63 @@ const ALTERED_MODES = [
   { pt: "Lócrio ♮2", en: "Locrian ♮2" },
 ];
 
-function alteredLesson(root, position) {
+// Module "7 Posições das Escalas Dominantes" (user, 2026-11-23; was "Escala
+// Alterada"): each key has three exercises on the same box, like the minor scales:
+// 1) the altered scale, the seven positions above; 2) the whole-tone scale;
+// 3) the half-whole diminished scale. The symmetric scales have no modes of their
+// own, so their shapes follow the altered one (dominantBoxNotes). Proposed by
+// Claude, pending the user's review of the fingerings. Lesson keys stay
+// "altered/p<n>/<root>" so finished lessons keep counting.
+/** The two symmetric dominant scales: semitones above the root → degree as written. */
+const DOMINANT_SYMMETRIC = [
+  { quality: "wholeTone", degrees: { 0: "1", 2: "2", 4: "3", 6: "♯4", 8: "♯5", 10: "♭7" } },
+  { quality: "diminished", degrees: { 0: "1", 1: "♭2", 3: "♯2", 4: "3", 6: "♯4", 7: "5", 9: "6", 10: "♭7" } },
+];
+
+/**
+ * A symmetric scale on the box of an altered position: on each string the notes
+ * fall between that string's lowest altered fret and its highest one, so the
+ * hand stays where it was. It starts on the first scale note at or above the
+ * altered position's first fret on the 6th string and goes up, moving to the
+ * next string when a note would pass the box, until the 1st string passes it.
+ * Fingers: 2–3 notes per string as `stringFingers`, four notes 1 2 3 4; one
+ * finger per fret when the whole shape fits in four frets.
+ */
+function dominantBoxNotes(root, scale, box, name) {
+  const rootPc = rootPitchClass(root);
+  const degreeOf = (midi) => scale.degrees[(((midi % 12) - rootPc) + 12) % 12];
+  const lo = (string) => Math.min(...box.filter((note) => note.string === string).map((note) => note.fret));
+  const hi = (string) => Math.max(...box.filter((note) => note.string === string).map((note) => note.fret));
+  let midi = OPEN_STRING_MIDI[0] + lo(0);
+  while (!degreeOf(midi)) midi += 1;
+  const notes = [];
+  let string = 0;
+  while (string < 6) {
+    if (midi - OPEN_STRING_MIDI[string] > hi(string)) {
+      string += 1;
+      continue;
+    }
+    notes.push({ string, fret: midi - OPEN_STRING_MIDI[string], degree: degreeOf(midi) });
+    do midi += 1;
+    while (!degreeOf(midi));
+  }
+  for (let s = 0; s < 6; s++) {
+    const onString = notes.filter((note) => note.string === s);
+    const frets = onString.map((note) => note.fret);
+    if (!frets.length) throw new Error(`${name}: corda ${6 - s} vazia`);
+    if (frets.at(-1) - frets[0] > 5) throw new Error(`${name}: abertura de ${frets.at(-1) - frets[0]} casas`);
+    const fingers =
+      frets.length === 1 ? [Math.min(4, Math.max(1, frets[0] - lo(s) + 1))] : frets.length === 4 ? [1, 2, 3, 4] : stringFingers(frets);
+    if (!fingers || frets.length > 4) throw new Error(`${name}: ${frets.length} notas na corda ${6 - s}`);
+    fingers.forEach((finger, i) => (onString[i].finger = finger));
+  }
+  const low = Math.min(...notes.map((note) => note.fret));
+  if (Math.max(...notes.map((note) => note.fret)) - low <= 3) notes.forEach((note) => (note.finger = note.fret - low + 1));
+  return notes;
+}
+
+/** The three dominant scales of one key in one position (same box, shared fret range). */
+function dominantSteps(root, position) {
   const index = position - 1;
   const notes = positionNotes({
     startPc: (rootPitchClass(root) + ALTERED_SCALE[index]) % 12,
@@ -884,33 +941,64 @@ function alteredLesson(root, position) {
     degreeOf: (degree) => ALTERED_DEGREES[degree],
     name: `${root} alterada posição ${position}`,
   });
-  const mode = ALTERED_MODES[index];
-  const name = { pt: `${root} alterada`, en: `${root} altered` };
+  const steps = [
+    { root, quality: "altered", position, mode: ALTERED_MODES[index], notes },
+    ...DOMINANT_SYMMETRIC.map((item) => ({
+      root,
+      quality: item.quality,
+      position,
+      notes: dominantBoxNotes(root, item, notes, `${root} ${item.quality} posição ${position}`),
+    })),
+  ];
+  // The three diagrams share their fret range, so the notes that change line up.
+  const frets = steps.flatMap((step) => step.notes.map((note) => note.fret));
+  steps.forEach((step) => (step.frets = [Math.min(...frets), Math.max(...frets)]));
+  return steps;
+}
+
+/**
+ * The dominant scales as groups of the module (user, 2026-11-23): one group per
+ * scale, one aula per position, one exercise per key. The altered lessons keep the
+ * keys from before the split ("altered/p<n>/<root>"), so finished lessons still count.
+ */
+const DOMINANT_GROUPS = [
+  { quality: "altered", keyPart: null, group: { pt: "Escala alterada", en: "Altered scale" }, name: { pt: "alterada", en: "altered" } },
+  { quality: "wholeTone", keyPart: "wholetone", group: { pt: "Escala de tons inteiros", en: "Whole-tone scale" }, name: { pt: "tons inteiros", en: "whole-tone" } },
+  { quality: "diminished", keyPart: "diminished", group: { pt: "Escala diminuta", en: "Diminished scale" }, name: { pt: "diminuta", en: "diminished" } },
+];
+
+function dominantLesson(root, position, groupIndex) {
+  const item = DOMINANT_GROUPS[groupIndex];
+  const step = dominantSteps(root, position)[groupIndex];
+  const mode = step.mode ? { pt: ` (${step.mode.pt})`, en: ` (${step.mode.en})` } : { pt: "", en: "" };
   return {
-    key: lessonKey("altered", `p${position}`, ascii(root)),
-    title: { pt: `${name.pt} - posição ${position}`, en: `${name.en} - position ${position}` },
+    key: lessonKey("altered", ...(item.keyPart ? [item.keyPart] : []), `p${position}`, ascii(root)),
+    title: { pt: `${root} ${item.name.pt} - posição ${position}`, en: `${root} ${item.name.en} - position ${position}` },
     subtitle: {
-      pt: `${name.pt} na posição ${position} (${mode.pt}), subindo e descendo`,
-      en: `${name.en} in position ${position} (${mode.en}), up and down`,
+      pt: `${root} ${item.name.pt} na posição ${position}${mode.pt}, subindo e descendo`,
+      en: `${root} ${item.name.en} in position ${position}${mode.en}, up and down`,
     },
-    scale: [{ root, quality: "altered", position, mode, notes }],
+    scale: [step],
   };
 }
 
 const ALTERED = {
-  title: { pt: "7 Posições da Escala Alterada", en: "7 Positions of the Altered Scale" },
+  title: { pt: "7 Posições das Escalas Dominantes", en: "7 Positions of the Dominant Scales" },
   subtitle: {
-    pt: "Aprenda a escala alterada em sete posições e use as tensões do acorde dominante em qualquer região do braço",
-    en: "Learn the altered scale in seven positions and use the dominant chord's tensions anywhere on the neck",
+    pt: "Toque as escalas alterada, de tons inteiros e diminuta em sete posições e use as tensões do acorde dominante em qualquer região do braço",
+    en: "Play the altered, whole-tone and diminished scales in seven positions and use the dominant chord's tensions anywhere on the neck",
   },
-  trails: [1, 2, 3, 4, 5, 6, 7].map((position) => ({
-    title: { pt: `Posição ${position}`, en: `Position ${position}` },
-    lessons: CYCLE_OF_FOURTHS.map((root) => alteredLesson(root, position)),
-  })),
+  trails: DOMINANT_GROUPS.flatMap((item, groupIndex) =>
+    [1, 2, 3, 4, 5, 6, 7].map((position) => ({
+      group: item.group,
+      title: { pt: `Posição ${position}`, en: `Position ${position}` },
+      lessons: CYCLE_OF_FOURTHS.map((root) => dominantLesson(root, position, groupIndex)),
+    })),
+  ),
 };
 
 // ---------------------------------------------------------------- minor scales
-// Module "Escalas Menores" (user, 2026-11-23): like the Ionian module, seven
+// Module "Escalas Menores" (user, 2026-11-23): like the major scale module, seven
 // positions of the minor key, position n starting on its n-th degree on the 6th
 // string (position 1 = Eólio shape). Each key has three exercises on the same box:
 // natural minor (Eólio), harmonic minor (raised 7th) and melodic minor (raised
@@ -950,11 +1038,12 @@ const MINOR_SCALES = [
 /** Degrees drawn with a ring: the 6th and 7th, the notes that tell the three scales apart. */
 const MINOR_HIGHLIGHT = ["♭6", "6", "♭7", "7"];
 
-function minorLesson(root, position) {
+/** The three minor scales of one key in one position (same box, shared fret range). */
+function minorSteps(root, position) {
   const index = position - 1;
   const natural = MINOR_SCALES[0];
   const naturalStart = ((rootPitchClass(root) + natural.intervals[index] - 4 + 24) % 12) || 12;
-  const scale = MINOR_SCALES.map((item) => ({
+  const steps = MINOR_SCALES.map((item) => ({
     root,
     quality: item.quality,
     position,
@@ -970,17 +1059,33 @@ function minorLesson(root, position) {
     }),
   }));
   // The three diagrams share their fret range, so the notes that move line up.
-  const frets = scale.flatMap((step) => step.notes.map((note) => note.fret));
-  scale.forEach((step) => (step.frets = [Math.min(...frets), Math.max(...frets)]));
-  const name = { pt: `${root} menor`, en: `${root} minor` };
+  const frets = steps.flatMap((step) => step.notes.map((note) => note.fret));
+  steps.forEach((step) => (step.frets = [Math.min(...frets), Math.max(...frets)]));
+  return steps;
+}
+
+/**
+ * The minor scales as groups of the module (user, 2026-11-23): one group per scale,
+ * one aula per position, one exercise per key. The natural minor lessons keep the
+ * keys from before the split ("minor/p<n>/<root>"), so finished lessons still count.
+ */
+const MINOR_GROUPS = [
+  { keyPart: null, group: { pt: "Menor natural", en: "Natural minor" }, name: { pt: "menor natural", en: "natural minor" } },
+  { keyPart: "harmonic", group: { pt: "Menor harmônica", en: "Harmonic minor" }, name: { pt: "menor harmônica", en: "harmonic minor" } },
+  { keyPart: "melodic", group: { pt: "Menor melódica", en: "Melodic minor" }, name: { pt: "menor melódica", en: "melodic minor" } },
+];
+
+function minorLesson(root, position, groupIndex) {
+  const item = MINOR_GROUPS[groupIndex];
+  const step = minorSteps(root, position)[groupIndex];
   return {
-    key: lessonKey("minor", `p${position}`, ascii(root)),
-    title: { pt: `${name.pt} - posição ${position}`, en: `${name.en} - position ${position}` },
+    key: lessonKey("minor", ...(item.keyPart ? [item.keyPart] : []), `p${position}`, ascii(root)),
+    title: { pt: `${root} ${item.name.pt} - posição ${position}`, en: `${root} ${item.name.en} - position ${position}` },
     subtitle: {
-      pt: `${name.pt} natural, harmônica e melódica na posição ${position}, subindo e descendo`,
-      en: `${root} natural, harmonic and melodic minor in position ${position}, up and down`,
+      pt: `${root} ${item.name.pt} na posição ${position} (${step.mode.pt}), subindo e descendo`,
+      en: `${root} ${item.name.en} in position ${position} (${step.mode.en}), up and down`,
     },
-    scale,
+    scale: [step],
   };
 }
 
@@ -990,10 +1095,131 @@ const MINORS = {
     pt: "Toque as escalas menor natural, harmônica e melódica em sete posições e ouça a diferença que a 6ª e a 7ª fazem",
     en: "Play the natural, harmonic and melodic minor scales in seven positions and hear the difference the 6th and 7th make",
   },
-  trails: [1, 2, 3, 4, 5, 6, 7].map((position) => ({
-    title: { pt: `Posição ${position}`, en: `Position ${position}` },
-    lessons: MINOR_CYCLE.map((root) => minorLesson(root, position)),
-  })),
+  trails: MINOR_GROUPS.flatMap((item, groupIndex) =>
+    [1, 2, 3, 4, 5, 6, 7].map((position) => ({
+      group: item.group,
+      title: { pt: `Posição ${position}`, en: `Position ${position}` },
+      lessons: MINOR_CYCLE.map((root) => minorLesson(root, position, groupIndex)),
+    })),
+  ),
+};
+
+// ---------------------------------------------------------------- pentatonics
+// Module "Pentatônicas no CAGED" (user, 2026-11-23): the major and minor pentatonic
+// scales in the five CAGED shapes, one group per scale, one aula per shape, one
+// exercise per key. Each shape is the usual pentatonic box: two notes per string
+// from the 6th to the 1st, starting on the degree that puts it around the CAGED
+// chord shape of the same name (C major: C shape from E, open position; A shape
+// from G; G shape from A; E shape from C; D shape from D). The minor shapes are named
+// after the minor chord shapes (Am, Gm, Em, Dm, Cm), the same boxes as the
+// relative major's (A minor Em shape = C major G shape). The 6th string starts on
+// frets 1–12, so no shape uses open strings. Proposed by Claude, pending review.
+const PENTATONICS = [
+  {
+    quality: "majorPentatonic",
+    keyPart: "major",
+    group: { pt: "Pentatônicas maiores", en: "Major pentatonics" },
+    name: { pt: "pentatônica maior", en: "major pentatonic" },
+    intervals: [0, 2, 4, 7, 9],
+    degrees: ["1", "2", "3", "5", "6"],
+    cycle: CYCLE_OF_FOURTHS,
+    // CAGED order up the neck; `start` = index of the degree the box starts on (6th string).
+    shapes: [
+      { shape: "C", start: 2 },
+      { shape: "A", start: 3 },
+      { shape: "G", start: 4 },
+      { shape: "E", start: 0 },
+      { shape: "D", start: 1 },
+    ],
+  },
+  {
+    quality: "minorPentatonic",
+    keyPart: "minor",
+    group: { pt: "Pentatônicas menores", en: "Minor pentatonics" },
+    name: { pt: "pentatônica menor", en: "minor pentatonic" },
+    intervals: [0, 3, 5, 7, 10],
+    degrees: ["1", "♭3", "4", "5", "♭7"],
+    cycle: MINOR_CYCLE,
+    shapes: [
+      { shape: "Am", start: 3 },
+      { shape: "Gm", start: 4 },
+      { shape: "Em", start: 0 },
+      { shape: "Dm", start: 1 },
+      { shape: "Cm", start: 2 },
+    ],
+  },
+];
+
+/**
+ * A pentatonic box: two notes per string from the 6th to the 1st, starting on
+ * degree `start` (fret 1–12 on the 6th string). Fingers: one finger per fret from
+ * the lowest fret of the box; when the B string pushes the box to five frets, the
+ * hand moves up one fret for the 2nd and 1st strings.
+ */
+function pentatonicNotes(root, scale, start, name) {
+  const rootPc = rootPitchClass(root);
+  const startFret = ((rootPc + scale.intervals[start] - 4 + 24) % 12) || 12;
+  let midi = OPEN_STRING_MIDI[0] + startFret;
+  const notes = [];
+  for (let n = 0; n < 12; n++) {
+    const degree = (start + n) % 5;
+    const string = Math.floor(n / 2);
+    notes.push({ string, fret: midi - OPEN_STRING_MIDI[string], degree: scale.degrees[degree] });
+    const next = scale.intervals[(degree + 1) % 5] + (degree === 4 ? 12 : 0);
+    midi += next - scale.intervals[degree];
+  }
+  const low = Math.min(...notes.map((note) => note.fret));
+  const top = notes.filter((note) => note.string >= 4);
+  const shifted = top.some((note) => note.fret - low > 3);
+  for (const note of notes) {
+    const base = shifted && note.string >= 4 ? low + 1 : low;
+    note.finger = note.fret - base + 1;
+    if (note.finger < 1 || note.finger > 4) throw new Error(`${name}: dedo ${note.finger} na casa ${note.fret}`);
+  }
+  return notes;
+}
+
+function pentatonicLesson(root, scale, shapeIndex) {
+  const { shape, start } = scale.shapes[shapeIndex];
+  const position = shapeIndex + 1;
+  const shapeName = { pt: `Forma de ${shape}`, en: `${shape} shape` };
+  return {
+    key: lessonKey("pentatonic", scale.keyPart, shape, ascii(root)),
+    title: { pt: `${root} ${scale.name.pt} - forma de ${shape}`, en: `${root} ${scale.name.en} - ${shape} shape` },
+    subtitle: {
+      pt: `${root} ${scale.name.pt} na forma de ${shape}, subindo e descendo`,
+      en: `${root} ${scale.name.en} in the ${shape} shape, up and down`,
+    },
+    scale: [
+      {
+        root,
+        quality: scale.quality,
+        position,
+        shape,
+        label: shapeName,
+        instruction: {
+          pt: `Toque ${root} ${scale.name.pt} na forma de ${shape}, subindo e descendo.`,
+          en: `Play ${root} ${scale.name.en} in the ${shape} shape, up and down.`,
+        },
+        notes: pentatonicNotes(root, scale, start, `${root} ${scale.quality} forma ${shape}`),
+      },
+    ],
+  };
+}
+
+const PENTATONIC_MODULE = {
+  title: { pt: "Pentatônicas no CAGED", en: "Pentatonics with CAGED" },
+  subtitle: {
+    pt: "Toque as pentatônicas maior e menor nas cinco formas do CAGED, em qualquer tom e em qualquer região do braço",
+    en: "Play the major and minor pentatonic scales in the five CAGED shapes, in any key and anywhere on the neck",
+  },
+  trails: PENTATONICS.flatMap((scale) =>
+    scale.shapes.map((item, shapeIndex) => ({
+      group: scale.group,
+      title: { pt: `Forma de ${item.shape}`, en: `${item.shape} shape` },
+      lessons: scale.cycle.map((root) => pentatonicLesson(root, scale, shapeIndex)),
+    })),
+  ),
 };
 
 // ---------------------------------------------------------------- arpeggios
@@ -2243,6 +2469,7 @@ const alteredTrails = renderScaleTrails(ALTERED);
 const arpeggioTrails = renderScaleTrails(ARPEGGIOS);
 const seventhArpeggioTrails = renderScaleTrails(SEVENTHS);
 const minorTrails = renderScaleTrails(MINORS);
+const pentatonicTrails = renderScaleTrails(PENTATONIC_MODULE);
 
 const file = `import type { ChordStep, ScaleStep } from "./chords.ts";
 import type { Localized } from "./i18n.tsx";
@@ -2340,6 +2567,15 @@ ${arpeggioTrails.join("\n")}
 ${seventhArpeggioTrails.join("\n")}
     ],
   },
+  // Minor scales before the dominant scales (user, 2026-11-23); ids stay.
+  {
+    id: 8,
+    title: ${loc(MINORS.title)},
+    subtitle: ${loc(MINORS.subtitle)},
+    trails: [
+${minorTrails.join("\n")}
+    ],
+  },
   {
     id: 7,
     title: ${loc(ALTERED.title)},
@@ -2349,11 +2585,11 @@ ${alteredTrails.join("\n")}
     ],
   },
   {
-    id: 8,
-    title: ${loc(MINORS.title)},
-    subtitle: ${loc(MINORS.subtitle)},
+    id: 9,
+    title: ${loc(PENTATONIC_MODULE.title)},
+    subtitle: ${loc(PENTATONIC_MODULE.subtitle)},
     trails: [
-${minorTrails.join("\n")}
+${pentatonicTrails.join("\n")}
     ],
   },
 ];
@@ -2366,5 +2602,5 @@ fs.writeFileSync(
   file,
 );
 console.log(
-  `src/lessons.ts: 8 seções, ${TRAILS.length + TRIADS.trails.length + INVERSIONS.trails.length + SCALES.trails.length + ARPEGGIOS.trails.length + SEVENTHS.trails.length + ALTERED.trails.length + MINORS.trails.length} trilhas, ${nextId - 1} aulas`,
+  `src/lessons.ts: 9 seções, ${TRAILS.length + TRIADS.trails.length + INVERSIONS.trails.length + SCALES.trails.length + ARPEGGIOS.trails.length + SEVENTHS.trails.length + ALTERED.trails.length + MINORS.trails.length + PENTATONIC_MODULE.trails.length} trilhas, ${nextId - 1} aulas`,
 );
