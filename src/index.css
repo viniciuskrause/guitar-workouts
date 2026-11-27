@@ -41,6 +41,8 @@
   --color-brand-soft: #e8eeff; /* tinted fills */
   --color-brand-soft-hover: #dbe4ff;
   --color-brand-line: #c3d1ff; /* tinted borders */
+  --color-brand-rule: #5778ec; /* dividers on brand (solid, ~white 25% over brand) */
+  --color-brand-track: #4c6feb; /* progress track and tags on brand */
 
   /* Accent (orange) — sound, "current", highlights */
   --color-accent: #f2600f; /* white text on it (3.3:1: bold/large text only) */

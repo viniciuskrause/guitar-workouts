@@ -58,7 +58,9 @@ Cada `--color-x` vira `bg-x`, `text-x`, `border-x`, `fill-x`, `stroke-x`.
 | `brand-strong` | #1A3FD1 | hover/pressed do primário |
 | `brand-ink` | #1B3BB3 | texto azul em fundo claro (links, rótulos de linha nos guias) |
 | `brand-soft` | #E8EEFF | texto secundário **sobre o azul**; fundos tingidos (selo de BPM) |
-| `brand-line` | #C3D1FF | bordas tingidas |
+| `brand-line` | #C3D1FF | bordas tingidas; "/total" do número grande sobre o azul |
+| `brand-rule` | #5778EC | divisórias finas **sobre o azul** (painel do Painel) |
+| `brand-track` | #4C6FEB | trilho de barra de progresso e etiquetas **sobre o azul** |
 | `accent` | #F2600F | preenchimento da barra principal, nó atual, ponto "atual", botão de som |
 | `accent-strong` | #D95209 | hover do botão laranja |
 | `accent-ink` | #B53D06 | texto laranja em fundo claro (eyebrow "Guia", rótulos de exercício) |
@@ -103,9 +105,13 @@ Outros tokens:
 
 - Coluna de conteúdo: `mx-auto max-w-[720px] px-4 sm:px-8` (home) /
   `px-5 sm:px-8` (guias). Exercícios: até `max-w-[1040px]`.
-- **Header (TopBar):** faixa de largura total com conteúdo em `max-w-[1440px]`, `sticky top-0`, `bg-canvas` (mesma cor do
-  fundo, nunca branco) com **só a linha** `border-b border-line` como
-  separador; nome do site "Guitar **Workouts**" ("Workouts" em `text-accent-ink`; `font-display` bold 19px, 22px a partir de `sm`) à esquerda seguido (`gap-3 sm:gap-10`, **alinhados pela linha de
+- **Fundo branco no Painel e nas páginas de módulo** (`bg-surface`, com
+  `<TopBar white />`); as demais páginas seguem em `canvas`.
+- **Header (TopBar e header da homepage):** faixa de largura total, `sticky top-0`, **sem
+  limite de largura no conteúdo**: nome do site fixo no canto superior esquerdo da tela e
+  menu/botões no canto superior direito (só o padding `px-4 sm:px-8 lg:px-12`), mesma cor do
+  fundo da página (`bg-canvas`; `white` → `bg-surface`) com **só a linha** `border-b border-line` como
+  separador; nome do site "Guitar Workouts" (uma cor só, `text-ink`; `font-display` bold 19px, 22px a partir de `sm`) à esquerda seguido (`gap-3 sm:gap-10`, **alinhados pela linha de
   base do texto** com `sm:items-baseline`) do link de navegação
   "Dicionário de Acordes" (`DictionaryLink`: `text-base font-semibold
   text-ink-2 hover:text-brand-ink`, sem borda nem fundo, `aria-current` em
@@ -131,29 +137,39 @@ Reutilize os componentes existentes em `src/App.tsx` antes de criar novos:
 módulo contém **aulas** ("lessons" em en). No código e nesta skill eles seguem como
 `Section`/"seção principal".
 
-**Painel** (`Dashboard`, home de `app/`, `max-w-[1100px]`): título ("Olá, Nome" /
-"Seu painel"); embaixo, lado a lado (`md:grid-cols-2`), dois cards `bg-surface`:
-**Seu progresso** (`ProgressHighlight`: número grande x/240 em `font-display`,
-barra `bg-brand` sobre `bg-sunken` no rodapé do card) e **Próxima aula**
-(`NextLesson`: título e subtítulo da aula atual, módulo, botão laranja "Continuar
-praticando"). Depois a lista **Módulos**: grade de `ModuleCard`
+**Painel** (`Dashboard`, home de `app/`, `max-w-[1100px]`, fundo branco): título
+("Olá, Nome" / "Seu painel"); embaixo, **um painel azul** (`rounded-card bg-brand
+text-white`, `md:grid-cols-2`, sem borda) com duas células separadas por uma
+divisória fina `border-brand-rule` (vertical no desktop, horizontal no celular),
+inspirado em painéis de métricas:
+- **Seu progresso** (`ProgressHighlight`): eyebrow `text-brand-soft`, número
+  grande `font-display` branco com "/total" em `text-brand-line`, "Aulas
+  concluídas" e barra `bg-white` sobre `bg-brand-track`.
+- **Próxima aula** (`NextLesson`): eyebrow; no meio (centralizado na vertical)
+  o nome da aula **igual à linha da trilha + cifra** ("Acordes meio diminutos -
+  C♯m7(♭5)", via `lessonPath`: último heading + cifra) e o subtítulo em
+  `text-brand-soft`; embaixo a etiqueta do módulo (`bg-brand-track`). À direita,
+  centralizado na vertical, botão redondo `size-12` **contornado**
+  (`border-2 border-white`, ícone `play size-7`, só ícone com `aria-label`
+  "Continuar/Começar a praticar"); ao passar o mouse em **toda a célula**
+  (`group`), ele ganha `bg-accent`/`border-accent`. A célula inteira é clicável.
+
+Depois, por grupo (Acordes / Arpejos / Escalas), a grade de `ModuleCard`
 (`md:grid-cols-2 lg:grid-cols-3`).
 
-**`ModuleCard`** — o único bloco "forte": card-link inteiro
-`rounded-card border border-brand bg-brand text-white p-5 sm:p-6`
-(hover `bg-brand-strong`), **sem overline** (o título da seção "Módulos" já diz o
-que são; a overline `Módulo` / `Module` fica só no cabeçalho da página do módulo), título `font-display text-[24px] sm:text-[26px] font-bold`,
-subtítulo `text-[15px] font-medium text-brand-soft`, chevron à direita
-(apontando para a direita) e embaixo a **barra de progresso destacada**
-(`ModuleProgress`: contador `font-mono text-sm font-bold` "x/y exercícios" — só na
-página do módulo; no painel, `showCount={false}`, só a barra —, barra
-`h-3 rounded-full bg-ink` com preenchimento `bg-accent`, `role="progressbar"`).
+**`ModuleCard`** — card-link branco como os demais containers:
+`rounded-card border border-line bg-surface p-5 sm:p-6`, hover `border-brand`,
+**sem overline**, título `font-display text-[20px] sm:text-[21px] font-bold`,
+subtítulo `text-[15px] font-medium text-muted`, chevron azul à direita e embaixo
+`ModuleProgress light` (barra `bg-brand` sobre `bg-sunken`, sem contador).
 
-**Página do módulo** (`ModulePage`, endereço `#modulo/<slug>`; slug = prefixo das
-chaves das aulas: `caged`, `inversions`): link "← Painel", cabeçalho azul igual ao
-card (com `h1` e o botão só-ícone do guia, `notebook size-6`) e, abaixo, a trilha
-de aulas (`UnitTrail`) sempre aberta. Voltar do exercício ou do guia retorna à
-página do módulo; o botão voltar do navegador volta ao painel.
+**Página do módulo** (`ModulePage`, endereço `#modulo/<slug>`, fundo branco):
+link "← Painel", cabeçalho azul no mesmo estilo do painel (`rounded-card bg-brand
+p-5 sm:p-7`, sem borda; overline "Módulo", `h1`, subtítulo `text-brand-soft`,
+botão só-ícone do guia `notebook size-6`) com `ModuleProgress` (contador mono
+"x/y aulas" + barra `bg-white` sobre `bg-brand-track`) e, abaixo, a lista de aulas
+(`LessonList`). Voltar do exercício ou do guia retorna à página do módulo; o
+botão voltar do navegador volta ao painel.
 
 **2. Cabeçalho de subseção e de grupo** (`Trail`, `TrailGroup`) — mesmo estilo:
 - `rounded-card border bg-surface`, `border-line` fechado / `border-line-strong` aberto.
@@ -351,7 +367,9 @@ listas com `<strong>` no início do item.
   reservada embaixo.
 - **Rodapé:** esquerda `SecondaryButton` "Anterior" (ícone `back`) e, ao lado,
   "Próximo" (ícone `forward`), ambos **só ícone** (`iconOnly`: quadrado 48px, nome
-  em `aria-label` e `title`; no exercício final o "Voltar" mantém o texto). "Próximo" pula para o próximo passo sem tocar (do último passo vai ao
+  em `aria-label` e `title`; no exercício final o "Voltar" mantém o texto). **No celular (< `sm`)**
+  as setas somem e o `BpmControl` ocupa a esquerda da barra, na mesma linha do
+  botão (`ExerciseShell centerOnPhone={false}`); a partir de `sm` volta ao centro. "Próximo" pula para o próximo passo sem tocar (do último passo vai ao
   exercício final; desabilitado tocando e no último passo de aula sem final;
   nunca conclui a aula); direita `PrimaryButton tone="accent"` ("Tocar",
   "Iniciar", ícone `play`) e, depois de tocar, `SecondaryButton` "Repetir" +

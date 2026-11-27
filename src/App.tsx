@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { NotationCard, playingOrder } from "./Notation.tsx";
 import {
@@ -36,7 +36,7 @@ function Brand() {
       className="flex items-center"
     >
       <span className="font-display text-[19px] font-bold leading-none tracking-[-0.03em] text-ink sm:text-[22px]">
-        Guitar <span className="text-accent-ink">Workouts</span>
+        Guitar Workouts
       </span>
     </a>
   );
@@ -69,10 +69,11 @@ function DictionaryLink() {
   );
 }
 
-function TopBar() {
+function TopBar({ white = false }: { white?: boolean }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-line bg-canvas">
-      <div className="mx-auto flex h-20 w-full max-w-[1440px] items-center justify-between gap-3 px-4 pt-2 sm:h-[88px] sm:px-8 lg:px-12">
+    <header className={`sticky top-0 z-10 border-b border-line ${white ? "bg-surface" : "bg-canvas"}`}>
+      {/* Full width: the brand sticks to the top left of the screen, the menu to the top right. */}
+      <div className="flex h-20 w-full items-center justify-between gap-3 px-4 pt-2 sm:h-[88px] sm:px-8 lg:px-12">
         <div className="flex min-w-0 items-center gap-3 sm:items-baseline sm:gap-10">
           <Brand />
           <DictionaryLink />
@@ -352,7 +353,17 @@ function useModuleRoute() {
 /** Lessons (trails) of a module finished in all 12 keys. */
 const finishedTrails = (trails: TrailData[]) => trails.filter((trail) => lessonStatus(trail) === "done").length;
 
-function ModuleProgress({ section, showCount = true }: { section: Section; /** "x/y aulas" before the bar (module page only). */ showCount?: boolean }) {
+function ModuleProgress({
+  section,
+  showCount = true,
+  light = false,
+}: {
+  section: Section;
+  /** "x/y aulas" before the bar (module page only). */
+  showCount?: boolean;
+  /** On a white card (dashboard): light track, blue fill. */
+  light?: boolean;
+}) {
   const { t, l } = useI18n();
   const done = finishedTrails(section.trails);
   const total = section.trails.length;
@@ -365,14 +376,17 @@ function ModuleProgress({ section, showCount = true }: { section: Section; /** "
         </span>
       )}
       <div
-        className="h-3 flex-1 overflow-hidden rounded-full bg-ink"
+        className={`h-3 flex-1 overflow-hidden rounded-full ${light ? "bg-sunken" : "bg-brand-track"}`}
         role="progressbar"
         aria-label={t(`Progresso do módulo ${l(section.title)}`, `${l(section.title)} module progress`)}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(doneShare * 100)}
       >
-        <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${doneShare * 100}%` }} />
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${light ? "bg-brand" : "bg-white"}`}
+          style={{ width: `${doneShare * 100}%` }}
+        />
       </div>
     </div>
   );
@@ -384,19 +398,19 @@ function ModuleCard({ section }: { section: Section }) {
   return (
     <a
       href={`${MODULE_HASH}${moduleSlug(section)}`}
-      className="group flex flex-col justify-between overflow-hidden rounded-card border border-brand bg-brand p-5 text-white transition-colors hover:border-brand-strong hover:bg-brand-strong sm:p-6"
+      className="group flex flex-col justify-between overflow-hidden rounded-card border border-line bg-surface p-5 text-ink transition-colors hover:border-brand sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <span className="block font-display text-[24px] font-bold leading-tight tracking-[-0.03em] sm:text-[26px]">{l(section.title)}</span>
-          <span className="mt-1.5 block text-[15px] font-medium leading-relaxed text-brand-soft">{l(section.subtitle)}</span>
+          <span className="block font-display text-[20px] font-bold leading-tight tracking-[-0.02em] sm:text-[21px]">{l(section.title)}</span>
+          <span className="mt-1.5 block text-[15px] font-medium leading-relaxed text-muted">{l(section.subtitle)}</span>
         </div>
-        <span className="flex size-11 shrink-0 items-center justify-center transition-transform group-hover:translate-x-1" aria-hidden="true">
+        <span className="flex size-11 shrink-0 items-center justify-center text-brand transition-transform group-hover:translate-x-1" aria-hidden="true">
           <Icon name="chevron" className="size-7 -rotate-90" />
         </span>
       </div>
       <div className="mt-5">
-        <ModuleProgress section={section} showCount={false} />
+        <ModuleProgress section={section} showCount={false} light />
       </div>
     </a>
   );
@@ -408,27 +422,27 @@ function ProgressHighlight({ trails }: { trails: TrailData[] }) {
   const done = finishedTrails(trails);
   const share = trails.length ? done / trails.length : 0;
   return (
-    <section aria-labelledby="progress-title" className="flex flex-col rounded-card border border-line bg-surface p-5 sm:p-7">
-      <h2 id="progress-title" className="eyebrow eyebrow--lg text-muted">
+    <section aria-labelledby="progress-title" className="flex flex-col p-5 sm:p-7">
+      <h2 id="progress-title" className="eyebrow eyebrow--lg text-brand-soft">
         {t("Seu progresso", "Your progress")}
       </h2>
       <div className="flex flex-1 flex-col justify-center gap-1.5 py-4">
-        <span className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] text-ink sm:text-[52px]">
+        <span className="font-display text-[44px] font-bold leading-none tracking-[-0.04em] text-white sm:text-[52px]">
           {done}
-          <span className="text-muted">/{trails.length}</span>
+          <span className="text-brand-line">/{trails.length}</span>
         </span>
-        <span className="text-[15px] font-bold text-ink">{t("Aulas concluídas", "Lessons completed")}</span>
+        <span className="text-[15px] font-bold text-white">{t("Aulas concluídas", "Lessons completed")}</span>
       </div>
       <div>
         <div
-          className="h-3 overflow-hidden rounded-full bg-sunken"
+          className="h-3 overflow-hidden rounded-full bg-brand-track"
           role="progressbar"
           aria-label={t("Aulas concluídas em todos os módulos", "Lessons completed across all modules")}
           aria-valuemin={0}
           aria-valuemax={trails.length}
           aria-valuenow={done}
         >
-          <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${share * 100}%` }} />
+          <div className="h-full rounded-full bg-white transition-[width] duration-500" style={{ width: `${share * 100}%` }} />
         </div>
       </div>
     </section>
@@ -437,36 +451,51 @@ function ProgressHighlight({ trails }: { trails: TrailData[] }) {
 
 /** Dashboard: the next lesson to practice, with its module, and a button that opens it. */
 function NextLesson({ sections: all, onSelect }: { sections: Section[]; onSelect: (lesson: Lesson) => void }) {
-  const { t, l } = useI18n();
+  const { t, l, lang } = useI18n();
   const section = all.find((item) => item.trails.some((trail) => trail.lessons.some((lesson) => lesson.status === "current")));
   const next = section?.trails.flatMap((trail) => trail.lessons).find((lesson) => lesson.status === "current");
   const started = all.some((item) => item.trails.some((trail) => trail.lessons.some((lesson) => lesson.status === "done")));
+  // Named like the lesson row on the module page: "Half-diminished chords - C♯m7(♭5)".
+  const path = next ? lessonPath(next, lang) : null;
+  const name = path ? [path.headings.at(-1), path.chord].filter(Boolean).join(" - ") : "";
   return (
-    <section aria-labelledby="next-title" className="flex flex-col rounded-card border border-line bg-surface p-5 sm:p-7">
-      <h2 id="next-title" className="eyebrow eyebrow--lg text-muted">
-        {t("Próxima aula", "Next lesson")}
-      </h2>
-      {next && section ? (
-        <>
-          <div className="mt-3">
-            <p className="font-display text-[24px] font-bold leading-tight tracking-[-0.03em] text-ink sm:text-[26px]">{l(next.title)}</p>
-            <p className="mt-1.5 text-[15px] text-ink-2">{l(next.subtitle)}</p>
-          </div>
-          <div className="mt-auto flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="inline-flex min-w-0 max-w-full items-center self-start rounded-md bg-sunken px-2.5 py-1 text-[13px] font-medium text-ink-2 sm:self-center">
-              <span className="truncate">{l(section.title)}</span>
-            </p>
-            <button
-              onClick={() => onSelect(next)}
-              className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-control bg-accent px-5 text-[15px] font-semibold text-white transition-colors hover:bg-accent-strong"
-            >
-              <Icon name="play" className="size-4" />
-              {started ? t("Continuar praticando", "Continue practicing") : t("Começar a praticar", "Start practicing")}
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className="mt-3 text-[16px] font-semibold text-ink">{t("Você concluiu todas as aulas!", "You've completed every lesson!")}</p>
+    <section
+      aria-labelledby="next-title"
+      onClick={next ? () => onSelect(next) : undefined}
+      className={`group flex items-center gap-6 border-t border-brand-rule p-5 sm:p-7 md:border-l md:border-t-0 ${next ? "cursor-pointer" : ""}`}
+    >
+      <div className="flex min-w-0 flex-1 flex-col self-stretch">
+        <h2 id="next-title" className="eyebrow eyebrow--lg text-brand-soft">
+          {t("Próxima aula", "Next lesson")}
+        </h2>
+        {next && section ? (
+          <>
+            <div className="flex flex-1 flex-col justify-center py-4">
+              <p className="font-display text-[24px] font-bold leading-tight tracking-[-0.03em] text-white sm:text-[26px]">{name || l(next.title)}</p>
+              <p className="mt-1.5 text-[15px] text-brand-soft">{l(next.subtitle)}</p>
+            </div>
+            <div className="flex">
+              <p className="inline-flex min-w-0 max-w-full items-center rounded-md bg-brand-track px-2.5 py-1 text-[13px] font-medium text-white">
+                <span className="truncate">{l(section.title)}</span>
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="mt-3 text-[16px] font-semibold text-white">{t("Você concluiu todas as aulas!", "You've completed every lesson!")}</p>
+        )}
+      </div>
+      {next && (
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(next);
+          }}
+          aria-label={started ? t("Continuar praticando", "Continue practicing") : t("Começar a praticar", "Start practicing")}
+          title={started ? t("Continuar praticando", "Continue practicing") : t("Começar a praticar", "Start practicing")}
+          className="flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-white text-white transition-colors group-hover:border-accent group-hover:bg-accent"
+        >
+          <Icon name="play" className="size-7 translate-x-0.5" />
+        </button>
       )}
     </section>
   );
@@ -499,13 +528,13 @@ function Dashboard({ sections: all, onSelect }: { sections: Section[]; onSelect:
   const account = useAccount();
   const firstName = account?.firstName ?? "";
   return (
-    <div className="min-h-screen bg-canvas text-ink">
-      <TopBar />
+    <div className="min-h-screen bg-surface text-ink">
+      <TopBar white />
       <main className="mx-auto max-w-[1100px] px-4 pb-16 pt-6 sm:px-8 sm:pt-8">
         <h1 className="font-display text-[30px] font-bold leading-tight tracking-[-0.04em] text-ink sm:text-[36px]">
           {firstName ? t(`Olá, ${firstName}`, `Hey, ${firstName}`) : t("Seu painel", "Your dashboard")}
         </h1>
-        <div className="mt-6 grid gap-4 sm:gap-5 md:grid-cols-2">
+        <div className="mt-6 grid overflow-hidden rounded-card bg-brand text-white md:grid-cols-2">
           <ProgressHighlight trails={all.flatMap((section) => section.trails)} />
           <NextLesson sections={all} onSelect={onSelect} />
         </div>
@@ -544,8 +573,8 @@ function ModulePage({
     };
   }, [section, l]);
   return (
-    <div className="min-h-screen bg-canvas text-ink">
-      <TopBar />
+    <div className="min-h-screen bg-surface text-ink">
+      <TopBar white />
       <main className="mx-auto max-w-[720px] px-4 pb-16 pt-6 sm:px-8 sm:pt-8">
         <a
           href="./"
@@ -559,7 +588,7 @@ function ModulePage({
         >
           <Icon name="back" className="size-4" /> {t("Painel", "Dashboard")}
         </a>
-        <section className="mt-3 overflow-hidden rounded-card border border-brand bg-brand p-5 text-white sm:p-6">
+        <section className="mt-3 overflow-hidden rounded-card bg-brand p-5 text-white sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <span className="eyebrow eyebrow--lg block text-brand-soft">{t("Módulo", "Module")}</span>
@@ -1005,11 +1034,46 @@ function ChordDiagram({
 }
 
 
+const PHONE_QUERY = "(max-width: 639px)";
+
+/**
+ * Phones: shrinks the exercise's diagram (the element marked `data-fit` inside `main`)
+ * until the page fits the screen with no scroll. Diagrams keep their proportions, so
+ * a smaller width means a shorter diagram; repeated passes absorb parts that do not scale
+ * (captions, the notation toolbar).
+ */
+function useFitOnPhone(mainRef: React.RefObject<HTMLElement | null>, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const fit = () => {
+      const block = main.querySelector<HTMLElement>("[data-fit]");
+      if (!block) return;
+      block.style.maxWidth = "";
+      if (!window.matchMedia(PHONE_QUERY).matches) return;
+      for (let pass = 0; pass < 4; pass++) {
+        const overflow = main.scrollHeight - main.clientHeight;
+        if (overflow <= 0) return;
+        const { offsetWidth: width, offsetHeight: height } = block;
+        if (!height) return;
+        block.style.maxWidth = `${Math.max(160, Math.floor((width * (height - overflow)) / height))}px`;
+      }
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(main);
+    void document.fonts?.ready.then(fit);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
 function ExerciseShell({
   progress,
   onExit,
   footer,
   footerCenter,
+  centerOnPhone = true,
   wide = false,
   children,
 }: {
@@ -1018,13 +1082,18 @@ function ExerciseShell({
   footer: ReactNode;
   /** Centred in the bottom bar (on its own row above the buttons on narrow screens). */
   footerCenter?: ReactNode;
+  /** false: the centre item is hidden on phones (the footer shows it in its own row instead). */
+  centerOnPhone?: boolean;
   /** Wider content column (the final exercise shows every diagram). */
   wide?: boolean;
   children: ReactNode;
 }) {
   const { t } = useI18n();
+  const mainRef = useRef<HTMLElement>(null);
+  useFitOnPhone(mainRef, [children]);
   return (
-    <div className="flex min-h-dvh flex-col bg-canvas text-ink">
+    // Phones: exactly one screen tall; the diagram shrinks to fit (useFitOnPhone).
+    <div className="flex h-dvh flex-col bg-canvas text-ink sm:h-auto sm:min-h-dvh">
       <header className="mx-auto flex w-full max-w-[1040px] items-center gap-4 px-4 pt-5 sm:gap-6 sm:px-10 sm:pt-12">
         <button
           onClick={onExit}
@@ -1049,7 +1118,8 @@ function ExerciseShell({
       </header>
 
       <main
-        className={`mx-auto flex w-full flex-1 flex-col justify-center px-4 py-8 sm:px-6 ${wide ? "max-w-[1040px]" : "max-w-[600px]"}`}
+        ref={mainRef}
+        className={`mx-auto flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 py-5 [justify-content:safe_center] sm:overflow-visible sm:px-6 sm:py-8 ${wide ? "max-w-[1040px]" : "max-w-[600px]"}`}
       >
         {children}
       </main>
@@ -1057,7 +1127,9 @@ function ExerciseShell({
       <footer className="sticky bottom-0 border-t border-line bg-surface">
         <div className="relative mx-auto w-full max-w-[1040px] px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-10 sm:py-6">
           {footerCenter && (
-            <div className="mb-3 flex justify-center lg:absolute lg:left-1/2 lg:top-1/2 lg:mb-0 lg:-translate-x-1/2 lg:-translate-y-1/2">
+            <div
+              className={`mb-3 justify-center sm:flex lg:absolute ${centerOnPhone ? "flex" : "hidden"} lg:left-1/2 lg:top-1/2 lg:mb-0 lg:-translate-x-1/2 lg:-translate-y-1/2`}
+            >
               {footerCenter}
             </div>
           )}
@@ -1119,7 +1191,7 @@ function ExerciseHeading({ path, title }: { path: LessonPath; title: string }) {
       <p className="eyebrow eyebrow--lg text-balance text-accent-ink">
         <LessonOverline path={path} />
       </p>
-      <h1 className="mt-3 text-balance font-display text-[26px] font-bold leading-tight tracking-[-0.03em] text-ink sm:text-[30px]">
+      <h1 className="mt-2 text-balance font-display text-[clamp(19px,3.1dvh,26px)] font-bold leading-tight tracking-[-0.03em] text-ink sm:mt-3 sm:text-[30px]">
         {title}
       </h1>
     </div>
@@ -1713,9 +1785,12 @@ function ExercisePage({
       onExit={onExit}
       wide={longRun}
       footerCenter={bpmControl}
+      centerOnPhone={false}
       footer={
         <>
-          <div className="flex gap-3">
+          {/* Phones: the metronome takes the left of the bar; the step arrows are left out. */}
+          <div className="sm:hidden">{bpmControl}</div>
+          <div className="hidden gap-3 sm:flex">
             <SecondaryButton
               label={t("Anterior", "Previous")}
               icon="back"
@@ -1781,7 +1856,8 @@ function ExercisePage({
             }
           />
           <div
-            className={`mx-auto mt-12 w-full ${longRun ? "max-w-[880px]" : "max-w-[560px]"}`}
+            data-fit
+            className={`mx-auto mt-[clamp(16px,3dvh,48px)] w-full sm:mt-12 ${longRun ? "max-w-[880px]" : "max-w-[560px]"}`}
           >
             {scaleStep.notation ? (
               <NotationCard
@@ -1803,7 +1879,7 @@ function ExercisePage({
             )}
           />
 
-          <div className="mt-12 flex flex-col items-center">
+          <div data-fit className="mx-auto mt-[clamp(16px,3dvh,48px)] flex w-full flex-col items-center sm:mt-12">
             <ChordCard step={step} activeStrings={activeStrings} className="max-w-[348px]" />
             {hasAlternatives && <AlternativeSlot className="mt-3 text-xs!" show={!!step.alternative} />}
           </div>

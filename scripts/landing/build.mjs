@@ -315,10 +315,10 @@ function page(lang, kind = "home") {
   <body class="bg-canvas text-ink">
     <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-control focus:bg-surface focus:px-4 focus:py-2">${lang === "en" ? "Skip to content" : "Pular para o conteúdo"}</a>
 
-    <header class="border-b border-line bg-canvas">
-      <nav data-auth-root class="mx-auto flex h-20 w-full max-w-[1200px] items-center justify-between gap-4 px-4 sm:h-[88px] sm:px-8" aria-label="${lang === "en" ? "Main" : "Principal"}">
+    <header class="sticky top-0 z-20 border-b border-line bg-canvas">
+      <nav data-auth-root class="flex h-20 w-full items-center justify-between gap-4 px-4 sm:h-[88px] sm:px-8 lg:px-12" aria-label="${lang === "en" ? "Main" : "Principal"}">
         <a href="${homeHref}" class="font-display text-[19px] font-bold leading-none tracking-[-0.03em] text-ink sm:text-[22px]">
-          Guitar <span class="text-accent-ink">Workouts</span>
+          Guitar Workouts
         </a>
         <div class="flex shrink-0 items-center gap-2 sm:gap-3" data-auth="out">
           <a href="${loginHref}" class="flex h-11 items-center rounded-control border border-line-strong bg-surface px-4 text-[15px] font-semibold text-ink-2 transition-colors hover:border-subtle hover:text-ink">${escape(t.nav.login)}</a>
@@ -326,7 +326,7 @@ function page(lang, kind = "home") {
         </div>
         <div class="hidden shrink-0 items-center gap-3" data-auth="in">
           <a href="${appHref}" class="hidden h-11 items-center rounded-control bg-brand px-5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-strong sm:flex">${escape(t.nav.continue)}</a>
-          <div data-auth-menu class="size-9"></div>
+          <div data-auth-menu class="size-11"></div>
         </div>${SESSION_KEY ? `
         <script>
           // A session stored by Firebase in this browser: hide the header buttons until

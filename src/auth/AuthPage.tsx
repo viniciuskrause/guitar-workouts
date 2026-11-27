@@ -164,7 +164,7 @@ function AuthHeader({ mode }: { mode: AuthMode }) {
     <header className="border-b border-line bg-canvas">
       <nav className="mx-auto flex h-20 w-full max-w-[1200px] items-center justify-between gap-4 px-4 sm:h-[88px] sm:px-8">
         <a href={homeHref(lang)} className="font-display text-[19px] font-bold leading-none tracking-[-0.03em] text-ink sm:text-[22px]">
-          Guitar <span className="text-accent-ink">Workouts</span>
+          Guitar Workouts
         </a>
         <a
           href={mode === "signup" ? `../login/?lang=${lang}` : `../signup/?lang=${lang}`}
