@@ -197,9 +197,9 @@ function LessonList({ section, onSelect }: { section: Section; onSelect: (lesson
                 type="button"
                 onClick={() => toggle(part)}
                 aria-expanded={expanded}
-                className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left sm:px-7"
+                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left sm:px-7"
               >
-                <span className="font-display text-[22px] font-bold tracking-[-0.02em] text-ink sm:text-[26px]">{l(title)}</span>
+                <span className="font-display text-[19px] font-bold tracking-[-0.02em] text-ink sm:text-[21px]">{l(title)}</span>
                 <Icon name="chevron" className={`size-5 shrink-0 text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
               </button>
             )}
@@ -211,7 +211,7 @@ function LessonList({ section, onSelect }: { section: Section; onSelect: (lesson
                   {partBlocks.map((block, blockIndex) =>
                     block.section && block.group ? (
                       <li key={blockIndex} className="lesson-tree__item lesson-tree__group">
-                        <h3 className="lesson-tree__heading border-l-4 border-brand pl-3 text-[16px] font-bold text-ink sm:text-[17px]">
+                        <h3 className="lesson-tree__heading text-[16px] font-bold text-ink sm:text-[17px]">
                           {l(block.group)}
                         </h3>
                         <ul className="lesson-tree lesson-tree--rows mt-1">
