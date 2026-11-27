@@ -318,6 +318,11 @@
     border-radius: 0 6px 6px 0;
   }
 
+  /* A lesson with a single key (the preparatory lesson): one segment, rounded on both ends. */
+  .lesson-row__key:only-child .lesson-row__bar {
+    border-radius: 6px;
+  }
+
   .lesson-row__key + .lesson-row__key .lesson-row__bar {
     box-shadow: inset 1px 0 0 var(--color-surface);
   }
