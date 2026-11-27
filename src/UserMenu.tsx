@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 
-import { initialsOf, signOutAccount, useAccount } from "./auth/firebase.ts";
+import { signOutAccount, useAccount } from "./auth/firebase.ts";
 import { useI18n } from "./i18n.tsx";
 import { Icon } from "./Icon.tsx";
 
 /**
- * Avatar with the user's initials (a profile icon when logged out); opens a menu
+ * Menu button (three lines) at the top right; opens a menu
  * with the account: profile, settings and log out, or log in / sign up. The
  * language is chosen on the settings page.
  * Used by the app's top bar and, for logged-in users, by the homepage header.
@@ -57,11 +57,11 @@ export function UserMenu({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label={t("Menu do usuário", "User menu")}
-        className={`flex size-9 items-center justify-center rounded-full font-mono text-[11px] font-semibold text-white transition hover:bg-ink-2 active:scale-95 ${
-          open ? "bg-ink-2" : "bg-ink"
+        className={`-mr-2 flex size-11 items-center justify-center rounded-control text-ink-2 transition hover:bg-sunken hover:text-ink active:scale-95 ${
+          open ? "bg-sunken text-ink" : ""
         }`}
       >
-        {account ? initialsOf(account) : <Icon name="profile" className="size-5" />}
+        <Icon name="menu" className="size-6" />
       </button>
       {open && (
         <div

@@ -20,6 +20,7 @@ export function Icon({
     | "heart"
     | "target"
     | "close"
+    | "menu"
     | "back"
     | "forward"
     | "replay"
@@ -96,6 +97,7 @@ export function Icon({
         <path d="m15 9 6-6M17 3h4v4" />
       </>
     ),
+    menu: <path d="M4 7h16M4 12h16M4 17h16" />,
     close: (
       <>
         <path d="m6 6 12 12M18 6 6 18" />
